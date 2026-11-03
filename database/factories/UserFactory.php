@@ -45,6 +45,13 @@ class UserFactory extends Factory
         ]);
     }
 
+    public function customer(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => UserRole::Customer->value,
+        ]);
+    }
+
     public function admin(): static
     {
         return $this->state(fn (array $attributes) => [
