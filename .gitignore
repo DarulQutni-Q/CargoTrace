@@ -1,0 +1,11 @@
+# Planning documents, notes, and reference material stay out of the repository.
+# README.md and ATTRIBUTION.md are graded deliverables and remain tracked.
+*.md
+!README.md
+!ATTRIBUTION.md
+design/
+CargoTrace UAS Final Project Brief.pptx
+
+# OS / tooling clutter
+.DS_Store
+Thumbs.db
