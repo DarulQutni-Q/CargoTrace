@@ -32,5 +32,7 @@ class DatabaseSeeder extends Seeder
             'email' => 'customer@cargotrace.test',
             'role' => UserRole::Customer,
         ]);
+
+        $this->call(OpsSeeder::class);
     }
 }
