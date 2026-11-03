@@ -1,5 +1,5 @@
 <x-layouts.app title="Dashboard">
-    <div class="mx-auto max-w-3xl space-y-6">
+    <div class="mx-auto max-w-3xl space-y-6 p-6">
         <section class="rounded-xl border border-line bg-surface p-6">
             <h2 class="text-xl font-semibold">Welcome back, {{ auth()->user()->name }}</h2>
             <p class="mt-1.5 text-sm leading-relaxed text-ink-2">
