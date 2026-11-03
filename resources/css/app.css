@@ -3,7 +3,63 @@
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 
+/*
+ * CargoTrace design tokens — the single source of visual truth is DESIGN.md.
+ * Surfaces and text sit on one cool graphite ramp; the accent is used sparingly
+ * and --color-live only marks live positions (map marker, progress knob).
+ */
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+    --color-base: #0a0b0d;
+    --color-rail: #08090a;
+    --color-surface: #101216;
+    --color-raised: #16181d;
+    --color-overlay: #1b1e24;
+    --color-line: rgba(235, 238, 245, 0.08);
+    --color-line-strong: rgba(235, 238, 245, 0.14);
+
+    --color-ink: #e8eaee;
+    --color-ink-2: #9ba0aa;
+    --color-ink-3: #5d626c;
+
+    --color-accent: #3b82f6;
+    --color-accent-strong: #2563eb;
+    --color-live: #facc15;
+
+    --color-info: #60a5fa;
+    --color-teal: #2dd4bf;
+    --color-warn: #fcd34d;
+    --color-orange: #fb923c;
+    --color-ok: #34d399;
+    --color-danger: #f87171;
+
+    --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
+}
+
+@layer base {
+    body {
+        background-color: var(--color-base);
+        color: var(--color-ink);
+        font-family: var(--font-sans);
+        -webkit-font-smoothing: antialiased;
+    }
+
+    ::selection {
+        background-color: color-mix(in oklab, var(--color-accent) 40%, transparent);
+    }
+
+    ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background-color: color-mix(in oklab, var(--color-ink-3) 40%, transparent);
+        border-radius: 999px;
+        border: 3px solid var(--color-base);
+    }
+
+    ::-webkit-scrollbar-track {
+        background: transparent;
+    }
 }
