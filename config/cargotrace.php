@@ -18,4 +18,13 @@ return [
         'kpi' => env('CARGOTRACE_KPI'),
     ],
 
+    // External geocoding (OpenStreetMap Nominatim). No API key is needed,
+    // but a proper user agent is mandatory per their usage policy; keys
+    // for other providers belong in .env, never in code [S9].
+    'geocoding' => [
+        'url' => env('CARGOTRACE_GEOCODING_URL', 'https://nominatim.openstreetmap.org/search'),
+        'user_agent' => env('CARGOTRACE_GEOCODING_USER_AGENT', 'CargoTrace/1.0 (UAS logistics project)'),
+        'timeout' => (int) env('CARGOTRACE_GEOCODING_TIMEOUT', 5),
+    ],
+
 ];

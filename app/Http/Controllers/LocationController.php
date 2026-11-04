@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Location;
+use App\Services\GeocodingService;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -50,6 +52,25 @@ class LocationController extends Controller
         $location->delete();
 
         return redirect()->route('locations.index');
+    }
+
+    /**
+     * Geocode a place name into coordinates for the form. The response
+     * states whether the provider answered — the UI tells the operator
+     * to enter coordinates by hand when it did not [S9].
+     */
+    public function geocode(Request $request, GeocodingService $geocoder): JsonResponse
+    {
+        $result = $geocoder->search((string) $request->query('q', ''));
+
+        if ($result === null) {
+            return response()->json([
+                'found' => false,
+                'message' => 'Geocoding unavailable or no match — enter the coordinates manually.',
+            ]);
+        }
+
+        return response()->json(['found' => true, ...$result]);
     }
 
     /**

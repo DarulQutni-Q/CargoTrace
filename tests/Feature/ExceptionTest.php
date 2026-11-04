@@ -98,6 +98,11 @@ class ExceptionTest extends TestCase
 
         $response->assertOk();
         $response->assertSee($withOpen->shipment_number);
-        $response->assertDontSee($resolvedOnly->shipment_number);
+
+        // The map payload legitimately contains every visible shipment,
+        // so the negative check targets the paginated list itself.
+        $listed = collect($response->viewData('shipments')->items())->pluck('shipment_number');
+        $this->assertContains($withOpen->shipment_number, $listed);
+        $this->assertNotContains($resolvedOnly->shipment_number, $listed);
     }
 }

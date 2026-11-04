@@ -43,6 +43,17 @@
                 </div>
             </div>
 
+            <div class="flex items-center gap-3">
+                <button type="button" data-geocode data-geocode-url="{{ route('locations.geocode') }}"
+                        class="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-raised px-3 text-xs text-ink-2 transition-colors hover:border-line-strong hover:text-ink">
+                    <x-lucide-search class="size-3.5" stroke-width="1.5"/>
+                    Fill coordinates from the map provider
+                </button>
+                <p class="text-xs text-ink-3" data-geocode-status></p>
+            </div>
+
+            @vite('resources/js/location-form.js')
+
             <div class="flex items-center gap-3 pt-2">
                 <x-button>Save location</x-button>
                 <a href="{{ route('locations.index') }}" class="text-sm text-ink-2 transition-colors hover:text-ink">Cancel</a>

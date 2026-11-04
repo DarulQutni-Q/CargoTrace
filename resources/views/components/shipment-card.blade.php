@@ -1,4 +1,4 @@
-@props(['shipment', 'selected' => false])
+@props(['shipment', 'selected' => false, 'href' => null])
 
 @php
 $cardClasses = $selected
@@ -6,7 +6,7 @@ $cardClasses = $selected
     : 'border-line bg-surface hover:bg-raised/60';
 @endphp
 
-<a href="{{ route('shipments.show', $shipment) }}" {{ $attributes->merge([
+<a href="{{ $href ?? route('shipments.show', $shipment) }}" {{ $attributes->merge([
     'class' => "block rounded-xl border p-4 transition-colors {$cardClasses}",
 ]) }}>
     <div class="flex items-center justify-between gap-2">

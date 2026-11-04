@@ -62,8 +62,60 @@ class ShipmentController extends Controller
 
         $shipments = $query->orderByDesc('created_at')->paginate(12)->withQueryString();
 
+        // The map view: every visible shipment with its endpoints and up
+        // to the two most recent geolocated events (current position +
+        // the one before it, for the heading of the live marker).
+        $mapData = Shipment::query()
+            ->visibleTo($request->user())
+            ->with(['origin', 'destination', 'trackingEvents' => fn ($events) => $events
+                ->whereNotNull('latitude')
+                ->whereNotNull('longitude')
+                ->orderByDesc('occurred_at')
+                ->orderByDesc('id')
+                ->limit(2),
+            ])
+            ->get()
+            ->map(fn (Shipment $shipment) => [
+                'id' => $shipment->id,
+                'shipment_number' => $shipment->shipment_number,
+                'status' => $shipment->current_status->value,
+                'origin' => $shipment->origin === null ? null : [
+                    'latitude' => (float) $shipment->origin->latitude,
+                    'longitude' => (float) $shipment->origin->longitude,
+                    'location_name' => $shipment->origin->code.' · '.$shipment->origin->city,
+                    'time' => $shipment->expected_departure_at?->format('M j · H:i'),
+                ],
+                'destination' => $shipment->destination === null ? null : [
+                    'latitude' => (float) $shipment->destination->latitude,
+                    'longitude' => (float) $shipment->destination->longitude,
+                    'location_name' => $shipment->destination->code.' · '.$shipment->destination->city,
+                    'time' => $shipment->expected_arrival_at?->format('M j · H:i'),
+                ],
+                'current_position' => ($event = $shipment->trackingEvents->first()) === null ? null : [
+                    'latitude' => (float) $event->latitude,
+                    'longitude' => (float) $event->longitude,
+                    'location_name' => $event->location_name,
+                    'time' => $event->occurred_at->format('M j · H:i'),
+                ],
+                'previous_position' => ($event = $shipment->trackingEvents->get(1)) === null ? null : [
+                    'latitude' => (float) $event->latitude,
+                    'longitude' => (float) $event->longitude,
+                ],
+            ])
+            ->all();
+
+        $focus = null;
+        if ($focusId = (int) $request->query('focus')) {
+            $focus = Shipment::query()
+                ->visibleTo($request->user())
+                ->with(['origin', 'destination', 'carrier', 'customer'])
+                ->find($focusId);
+        }
+
         return view('shipments.index', [
             'shipments' => $shipments,
+            'mapData' => $mapData,
+            'focus' => $focus,
             'filters' => [
                 'q' => $search,
                 'status' => $status,

@@ -12,8 +12,9 @@
             </div>
 
             <form method="GET" action="{{ route('shipments.index') }}" class="px-4">
-                @if ($filters['status'])<input type="hidden" name="status" value="{{ $filters['status'] }}">@endif
-                @if ($filters['delayed'])<input type="hidden" name="delayed" value="1">@endif
+                @foreach (['status' => $filters['status'], 'delayed' => $filters['delayed'] ? 1 : null, 'open_exceptions' => $filters['open_exceptions'] ? 1 : null] as $key => $value)
+                    @if ($value)<input type="hidden" name="{{ $key }}" value="{{ $value }}">@endif
+                @endforeach
                 <div class="relative">
                     <x-lucide-search class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-3" stroke-width="1.5"/>
                     <x-input name="q" value="{{ $filters['q'] }}" placeholder="Search order ID, port, carrier..." class="pl-9"
@@ -39,8 +40,12 @@
             </div>
 
             <div class="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 pb-4">
+                @php $baseQuery = collect(request()->query())->except('focus')->all(); @endphp
                 @forelse ($shipments as $shipment)
-                    <x-shipment-card :shipment="$shipment"/>
+                    <x-shipment-card
+                        :shipment="$shipment"
+                        :selected="$focus?->id === $shipment->id"
+                        :href="route('shipments.index', [...$baseQuery, 'focus' => $shipment->id])"/>
                 @empty
                     <div class="mt-16 px-4 text-center">
                         <p class="text-sm text-ink-2">No shipments match this view</p>
@@ -66,12 +71,51 @@
             </div>
         </section>
 
-        <section class="hidden items-center justify-center lg:flex">
-            <div class="max-w-xs text-center">
-                <x-lucide-map class="mx-auto size-8 text-ink-3" stroke-width="1.25"/>
-                <p class="mt-3 text-sm text-ink-2">The live world map lands with the map milestone</p>
-                <p class="mt-1 text-xs text-ink-3">Routes, positions, and popups for every shipment</p>
-            </div>
+        <section class="relative hidden lg:block">
+            <div id="world-map" class="h-full w-full" data-shipments='@json($mapData)' data-focus="{{ $focus?->id ?? 0 }}"></div>
+            @vite('resources/js/map.js')
+
+            @if ($focus)
+                <div class="absolute inset-x-4 bottom-4 z-[500] rounded-xl border border-line bg-surface/90 p-5 shadow-[0_8px_24px_rgba(0,0,0,0.5)] backdrop-blur-md">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div class="flex items-center gap-3">
+                            <span class="font-mono text-sm font-medium text-ink">{{ $focus->shipment_number }}</span>
+                            <x-badge :tone="$focus->current_status->tone()">{{ $focus->current_status->label() }}</x-badge>
+                            @if ($focus->estimated_arrival_at !== null && $focus->estimated_arrival_at->gt($focus->expected_arrival_at))
+                                <x-badge :tone="$focus->delayTone()">Delayed</x-badge>
+                            @endif
+                        </div>
+                        <a href="{{ route('shipments.show', $focus) }}"
+                           class="inline-flex items-center gap-1.5 text-xs text-accent transition-colors hover:text-info">
+                            Open full detail
+                            <x-lucide-maximize-2 class="size-3.5" stroke-width="1.5"/>
+                        </a>
+                    </div>
+
+                    <div class="mt-4 grid items-start gap-5 sm:grid-cols-[1.2fr_1fr]">
+                        <x-progress-route :shipment="$focus"/>
+
+                        <div class="space-y-2 text-xs">
+                            <div class="flex justify-between gap-3">
+                                <span class="text-ink-3">Expected arrival</span>
+                                <span class="font-mono text-ink-2">{{ $focus->expected_arrival_at->format('M j · H:i') }}</span>
+                            </div>
+                            <div class="flex justify-between gap-3">
+                                <span class="text-ink-3">Estimated</span>
+                                <span class="font-mono text-ink-2">{{ $focus->estimated_arrival_at?->format('M j · H:i') ?? '—' }}</span>
+                            </div>
+                            <div class="flex justify-between gap-3">
+                                <span class="text-ink-3">Carrier</span>
+                                <span class="text-ink-2">{{ $focus->carrier->name }} <span class="font-mono">{{ $focus->carrier->code }}</span></span>
+                            </div>
+                            <div class="flex justify-between gap-3">
+                                <span class="text-ink-3">Customer</span>
+                                <span class="text-ink-2">{{ $focus->customer->name }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            @endif
         </section>
     </div>
 </x-layouts.app>

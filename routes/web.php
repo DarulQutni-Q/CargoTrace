@@ -32,5 +32,6 @@ Route::middleware('auth')->group(function () {
     Route::middleware('role:ADMIN')->group(function () {
         Route::resource('carriers', CarrierController::class)->except(['show']);
         Route::resource('locations', LocationController::class)->except(['show']);
+        Route::get('geocode', [LocationController::class, 'geocode'])->name('locations.geocode');
     });
 });
