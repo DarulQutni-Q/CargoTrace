@@ -6,6 +6,7 @@ use App\Enums\ShipmentStatus;
 use App\Models\Carrier;
 use App\Models\Location;
 use App\Models\Shipment;
+use App\Models\ShipmentException;
 use App\Models\ShipmentItem;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -63,6 +64,8 @@ class OpsSeeder extends Seeder
 
         $cargo = ['Electronics', 'Garments', 'Machinery parts', 'Perishables', 'Automotive components', 'Consumer goods'];
 
+        $createdShipments = [];
+
         foreach ($plans as $index => [$status, $origin, $destination, $carrier, $offset, $transitDays, $customerIndex, $estimateHours]) {
             $departure = now()->modify($offset)->setTime(8 + $index % 6, 30);
             $arrival = (clone $departure)->modify("+{$transitDays} days");
@@ -91,6 +94,8 @@ class OpsSeeder extends Seeder
                 'weight_kg' => 400 + $index * 221.25,
                 'volume_m3' => 6 + $index * 1.4,
             ]);
+
+            $createdShipments[] = $shipment;
 
             // A believable journey: each status beyond CREATED has the
             // events that would have produced it, in chronological order.
@@ -123,6 +128,52 @@ class OpsSeeder extends Seeder
                     'created_by' => $customers->first()->id,
                 ]);
             }
+        }
+
+        // A few disruptions across the lifecycle so the exception
+        // management surfaces show real variety [S8].
+        $operator = User::query()->where('role', 'OPERATOR')->first();
+        $inTransit = collect($createdShipments)
+            ->filter(fn (Shipment $s) => $s->current_status === ShipmentStatus::InTransit)
+            ->values();
+
+        if ($inTransit->get(0) !== null) {
+            ShipmentException::create([
+                'shipment_id' => $inTransit[0]->id,
+                'type' => 'CUSTOMS_HOLD',
+                'severity' => 'HIGH',
+                'status' => 'OPEN',
+                'description' => 'Container selected for physical inspection at Rotterdam customs.',
+                'detected_at' => now()->modify('-1 day'),
+            ]);
+        }
+
+        if ($inTransit->get(1) !== null) {
+            ShipmentException::create([
+                'shipment_id' => $inTransit[1]->id,
+                'type' => 'WEATHER_DELAY',
+                'severity' => 'MEDIUM',
+                'status' => 'INVESTIGATING',
+                'description' => 'North Sea storm window — carrier expects a one-day berth delay.',
+                'detected_at' => now()->modify('-2 days'),
+            ]);
+        }
+
+        $delivered = collect($createdShipments)
+            ->filter(fn (Shipment $s) => $s->current_status === ShipmentStatus::Delivered)
+            ->first();
+
+        if ($delivered !== null) {
+            ShipmentException::create([
+                'shipment_id' => $delivered->id,
+                'type' => 'DOCUMENTATION_ISSUE',
+                'severity' => 'LOW',
+                'status' => 'RESOLVED',
+                'description' => 'Bill of lading name mismatch — corrected with the consignee.',
+                'detected_at' => now()->modify('-6 days'),
+                'resolved_at' => now()->modify('-5 days'),
+                'resolved_by' => $operator?->id,
+            ]);
         }
     }
 }

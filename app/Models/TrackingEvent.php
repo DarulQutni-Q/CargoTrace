@@ -18,7 +18,7 @@ class TrackingEvent extends Model
 
     protected $fillable = [
         'shipment_id', 'event_type', 'occurred_at', 'location_name',
-        'latitude', 'longitude', 'description', 'created_by',
+        'latitude', 'longitude', 'description', 'created_by', 'exception_id',
     ];
 
     protected function casts(): array
@@ -40,6 +40,11 @@ class TrackingEvent extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    public function exception(): BelongsTo
+    {
+        return $this->belongsTo(ShipmentException::class);
+    }
+
     /**
      * Status-mapped events drive the shipment lifecycle; anything else
      * is an informational observation on the timeline.
@@ -47,5 +52,10 @@ class TrackingEvent extends Model
     public function isStatusEvent(): bool
     {
         return ShipmentStatus::tryFrom($this->event_type) !== null;
+    }
+
+    public function isExceptionEvent(): bool
+    {
+        return $this->exception_id !== null;
     }
 }

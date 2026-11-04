@@ -11,7 +11,12 @@ $cardClasses = $selected
 ]) }}>
     <div class="flex items-center justify-between gap-2">
         <span class="font-mono text-sm font-medium text-ink">{{ $shipment->shipment_number }}</span>
-        <x-badge :tone="$shipment->current_status->tone()">{{ $shipment->current_status->label() }}</x-badge>
+        <span class="flex items-center gap-1.5">
+            @if ($shipment->estimated_arrival_at !== null && $shipment->estimated_arrival_at->gt($shipment->expected_arrival_at))
+                <x-badge :tone="$shipment->delayTone()">Delayed</x-badge>
+            @endif
+            <x-badge :tone="$shipment->current_status->tone()">{{ $shipment->current_status->label() }}</x-badge>
+        </span>
     </div>
 
     <div class="mt-3 flex items-center gap-2 text-ink-3">

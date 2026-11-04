@@ -29,6 +29,7 @@ class UpdateShipmentRequest extends FormRequest
             'volume_m3' => ['required', 'numeric', 'min:0'],
             'expected_departure_at' => ['required', 'date'],
             'expected_arrival_at' => ['required', 'date', 'after:expected_departure_at'],
+            'estimated_arrival_at' => ['nullable', 'date'],
             'items' => ['sometimes', 'array'],
             'items.*.description' => ['required_with:items', 'string', 'max:255'],
             'items.*.quantity' => ['required_with:items', 'integer', 'min:1'],

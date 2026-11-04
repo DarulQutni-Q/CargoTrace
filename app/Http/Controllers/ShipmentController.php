@@ -3,13 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Enums\ShipmentStatus;
+use App\Http\Requests\StoreExceptionRequest;
 use App\Http\Requests\StoreShipmentRequest;
 use App\Http\Requests\StoreTrackingRequest;
+use App\Http\Requests\UpdateExceptionRequest;
 use App\Http\Requests\UpdateShipmentRequest;
 use App\Models\Carrier;
 use App\Models\Location;
 use App\Models\Shipment;
+use App\Models\ShipmentException;
 use App\Models\User;
+use App\Services\ExceptionService;
 use App\Services\ShipmentService;
 use App\Services\TrackingService;
 use Illuminate\Contracts\View\View;
@@ -21,6 +25,7 @@ class ShipmentController extends Controller
     public function __construct(
         private ShipmentService $shipments,
         private TrackingService $tracking,
+        private ExceptionService $exceptions,
     ) {}
 
     /**
@@ -51,11 +56,20 @@ class ShipmentController extends Controller
                 ->whereColumn('estimated_arrival_at', '>', 'expected_arrival_at');
         }
 
+        if ($request->boolean('open_exceptions')) {
+            $query->whereHas('exceptions', fn ($exception) => $exception->where('status', '!=', 'RESOLVED'));
+        }
+
         $shipments = $query->orderByDesc('created_at')->paginate(12)->withQueryString();
 
         return view('shipments.index', [
             'shipments' => $shipments,
-            'filters' => ['q' => $search, 'status' => $status, 'delayed' => $request->boolean('delayed')],
+            'filters' => [
+                'q' => $search,
+                'status' => $status,
+                'delayed' => $request->boolean('delayed'),
+                'open_exceptions' => $request->boolean('open_exceptions'),
+            ],
         ]);
     }
 
@@ -80,7 +94,7 @@ class ShipmentController extends Controller
     {
         $visible = Shipment::query()->visibleTo($request->user())->findOrFail($shipment->id);
 
-        $visible->load(['origin', 'destination', 'carrier', 'customer', 'items', 'trackingEvents.creator']);
+        $visible->load(['origin', 'destination', 'carrier', 'customer', 'items', 'trackingEvents.creator', 'trackingEvents.exception', 'exceptions.resolver']);
 
         return view('shipments.show', [
             'shipment' => $visible,
@@ -97,6 +111,23 @@ class ShipmentController extends Controller
         $this->tracking->addEvent($shipment, $request->validated(), $request->user());
 
         return redirect()->route('shipments.show', $shipment)->with('status', 'Tracking event recorded.');
+    }
+
+    /**
+     * Raising an exception also writes its timeline event (service).
+     */
+    public function storeException(StoreExceptionRequest $request, Shipment $shipment): RedirectResponse
+    {
+        $this->exceptions->create($shipment, $request->validated(), $request->user());
+
+        return redirect()->route('shipments.show', $shipment)->with('status', 'Exception recorded.');
+    }
+
+    public function updateException(UpdateExceptionRequest $request, ShipmentException $exception): RedirectResponse
+    {
+        $this->exceptions->update($exception, $request->validated(), $request->user());
+
+        return redirect()->route('shipments.show', $exception->shipment)->with('status', 'Exception updated.');
     }
 
     public function edit(Request $request, Shipment $shipment): View

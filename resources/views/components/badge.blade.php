@@ -10,6 +10,7 @@ $tones = [
     'green' => 'bg-ok/10 text-ok',
     'red' => 'bg-danger/10 text-danger',
     'live' => 'bg-live/10 text-live',
+    'outline-green' => 'border border-ok/40 text-ok',
 ];
 @endphp
 

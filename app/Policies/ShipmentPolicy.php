@@ -40,6 +40,15 @@ class ShipmentPolicy
         return $user->isAdmin() || $user->isOperator();
     }
 
+    /**
+     * Exceptions are operational too: staff raise and work them,
+     * customers only ever see the ones on their own shipments.
+     */
+    public function manageExceptions(User $user, Shipment $shipment): bool
+    {
+        return $user->isAdmin() || $user->isOperator();
+    }
+
     public function delete(User $user, Shipment $shipment): bool
     {
         return $user->isAdmin();

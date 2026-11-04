@@ -24,6 +24,10 @@ Route::middleware('auth')->group(function () {
     Route::resource('shipments', ShipmentController::class);
     Route::post('shipments/{shipment}/tracking', [ShipmentController::class, 'storeTracking'])
         ->name('shipments.tracking.store');
+    Route::post('shipments/{shipment}/exceptions', [ShipmentController::class, 'storeException'])
+        ->name('shipments.exceptions.store');
+    Route::patch('exceptions/{exception}', [ShipmentController::class, 'updateException'])
+        ->name('exceptions.update');
 
     Route::middleware('role:ADMIN')->group(function () {
         Route::resource('carriers', CarrierController::class)->except(['show']);

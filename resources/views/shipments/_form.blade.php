@@ -100,6 +100,11 @@ $oldOr = fn ($field, $format = null) => old($field, $shipment?->{$field}?->forma
                 <x-input id="expected_arrival_at" name="expected_arrival_at" type="datetime-local" value="{{ $oldOr('expected_arrival_at') }}"/>
                 @error('expected_arrival_at') <p class="mt-1.5 text-xs text-danger">{{ $message }}</p> @enderror
             </div>
+            <div>
+                <label for="estimated_arrival_at" class="mb-1.5 block text-xs font-medium text-ink-2">Estimated arrival</label>
+                <x-input id="estimated_arrival_at" name="estimated_arrival_at" type="datetime-local" value="{{ $oldOr('estimated_arrival_at') }}" placeholder="From the carrier when known"/>
+                @error('estimated_arrival_at') <p class="mt-1.5 text-xs text-danger">{{ $message }}</p> @enderror
+            </div>
         </div>
     </section>
 

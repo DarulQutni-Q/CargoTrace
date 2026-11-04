@@ -24,9 +24,10 @@
             <div class="flex gap-1.5 overflow-x-auto px-4 py-3">
                 @php
                     $chips = [
-                        ['label' => 'All shipments', 'params' => [], 'active' => ! $filters['status'] && ! $filters['delayed']],
+                        ['label' => 'All shipments', 'params' => [], 'active' => ! $filters['status'] && ! $filters['delayed'] && ! $filters['open_exceptions']],
                         ['label' => 'In transit', 'params' => ['status' => 'IN_TRANSIT'], 'active' => $filters['status'] === 'IN_TRANSIT'],
                         ['label' => 'Delayed', 'params' => ['delayed' => 1], 'active' => $filters['delayed']],
+                        ['label' => 'Exceptions', 'params' => ['open_exceptions' => 1], 'active' => $filters['open_exceptions']],
                     ];
                 @endphp
                 @foreach ($chips as $chip)
