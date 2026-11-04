@@ -8,6 +8,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -46,5 +47,15 @@ class User extends Authenticatable
     public function isCustomer(): bool
     {
         return $this->role === UserRole::Customer;
+    }
+
+    /**
+     * Overrides the Notifiable trait's relation: CargoTrace keeps its
+     * own notifications table per the brief's data model [S10] instead
+     * of Laravel's polymorphic database notifications.
+     */
+    public function notifications(): HasMany
+    {
+        return $this->hasMany(ShipmentNotification::class);
     }
 }

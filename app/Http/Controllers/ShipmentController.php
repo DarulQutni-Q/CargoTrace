@@ -137,6 +137,7 @@ class ShipmentController extends Controller
         $shipment = $this->shipments->create(
             $request->safe()->except(['items']),
             $request->validated('items', []),
+            $request->user(),
         );
 
         return redirect()->route('shipments.show', $shipment);
@@ -197,6 +198,7 @@ class ShipmentController extends Controller
             $shipment,
             $request->safe()->except(['items']),
             $request->validated('items'),
+            $request->user(),
         );
 
         return redirect()->route('shipments.show', $shipment);
@@ -206,7 +208,7 @@ class ShipmentController extends Controller
     {
         $this->authorize('delete', $shipment);
 
-        $this->shipments->delete($shipment);
+        $this->shipments->delete($shipment, auth()->user());
 
         return redirect()->route('shipments.index');
     }

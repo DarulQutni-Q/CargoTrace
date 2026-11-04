@@ -14,10 +14,16 @@ use Illuminate\Validation\ValidationException;
  * The single door through which tracking events enter the system.
  * It enforces the two business rules the brief is strict about:
  * status transitions validated server-side against one map [S6], and
- * an append-only, chronologically ordered history [S7].
+ * an append-only, chronologically ordered history [S7]. Status changes
+ * also raise the audit entry and the customer notification [S10].
  */
 class TrackingService
 {
+    public function __construct(
+        private NotificationService $notifications,
+        private AuditLogger $audit,
+    ) {}
+
     /**
      * @param  array<string, mixed>  $data
      */
@@ -53,8 +59,23 @@ class TrackingService
                 'created_by' => $creator->id,
             ]);
 
-            if ($status !== null) {
+            if ($status !== null && $shipment->current_status !== $status) {
+                $previous = $shipment->current_status;
+
                 $shipment->update(['current_status' => $status->value]);
+                $shipment->refresh();
+
+                $this->audit->record($creator, 'shipment.status_changed', $shipment, [
+                    'from' => $previous->value,
+                    'to' => $status->value,
+                ]);
+
+                $this->notifications->notifyCustomer(
+                    $shipment,
+                    'STATUS_CHANGED',
+                    'Shipment '.$shipment->shipment_number.' is now '.$status->label(),
+                    'Latest position: '.$event->location_name,
+                );
             }
 
             return $event;

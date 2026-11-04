@@ -4,23 +4,27 @@ namespace App\Services;
 
 use App\Enums\ShipmentStatus;
 use App\Models\Shipment;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
  * Shipment persistence with its invariants in one place: the number is
- * generated when absent, every new shipment starts at CREATED, and item
- * rows are written inside the same transaction as their parent.
+ * generated when absent, every new shipment starts at CREATED, item
+ * rows are written inside the same transaction as their parent, and
+ * every important change lands in the audit log with its actor [S10].
  */
 class ShipmentService
 {
+    public function __construct(private AuditLogger $audit) {}
+
     /**
      * @param  array<string, mixed>  $data
      * @param  array<int, array<string, mixed>>  $items
      */
-    public function create(array $data, array $items = []): Shipment
+    public function create(array $data, array $items = [], ?User $actor = null): Shipment
     {
-        return DB::transaction(function () use ($data, $items) {
+        return DB::transaction(function () use ($data, $items, $actor) {
             $shipment = Shipment::create([
                 ...$data,
                 'shipment_number' => $data['shipment_number'] ?? $this->generateShipmentNumber(),
@@ -28,6 +32,7 @@ class ShipmentService
             ]);
 
             $this->syncItems($shipment, $items);
+            $this->audit->record($actor, 'shipment.created', $shipment);
 
             return $shipment->refresh();
         });
@@ -37,25 +42,38 @@ class ShipmentService
      * @param  array<string, mixed>  $data
      * @param  array<int, array<string, mixed>>  $items
      */
-    public function update(Shipment $shipment, array $data, ?array $items = null): Shipment
+    public function update(Shipment $shipment, array $data, ?array $items = null, ?User $actor = null): Shipment
     {
-        DB::transaction(function () use ($shipment, $data, $items) {
+        return DB::transaction(function () use ($shipment, $data, $items, $actor) {
+            $before = $shipment->getAttributes();
+
             $shipment->update($data);
 
             if ($items !== null) {
                 $this->syncItems($shipment, $items);
             }
-        });
 
-        return $shipment->refresh();
+            $changes = collect($shipment->getChanges())
+                ->except(['updated_at'])
+                ->mapWithKeys(fn ($to, $key) => [$key => ['from' => $before[$key] ?? null, 'to' => $to]])
+                ->all();
+
+            if ($changes !== []) {
+                $this->audit->record($actor, 'shipment.updated', $shipment, $changes);
+            }
+
+            return $shipment->refresh();
+        });
     }
 
     /**
      * Soft delete keeps tracking history and audit rows coherent.
      */
-    public function delete(Shipment $shipment): void
+    public function delete(Shipment $shipment, ?User $actor = null): void
     {
         $shipment->delete();
+
+        $this->audit->record($actor, 'shipment.archived', $shipment);
     }
 
     /**

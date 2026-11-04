@@ -1,10 +1,12 @@
 <?php
 
+use App\Http\Controllers\AuditController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\CarrierController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LocationController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ShipmentController;
 use Illuminate\Support\Facades\Route;
 
@@ -29,9 +31,14 @@ Route::middleware('auth')->group(function () {
     Route::patch('exceptions/{exception}', [ShipmentController::class, 'updateException'])
         ->name('exceptions.update');
 
+    Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::post('notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
+    Route::post('notifications/{notification}/read', [NotificationController::class, 'read'])->name('notifications.read');
+
     Route::middleware('role:ADMIN')->group(function () {
         Route::resource('carriers', CarrierController::class)->except(['show']);
         Route::resource('locations', LocationController::class)->except(['show']);
         Route::get('geocode', [LocationController::class, 'geocode'])->name('locations.geocode');
+        Route::get('audit', [AuditController::class, 'index'])->name('audit.index');
     });
 });

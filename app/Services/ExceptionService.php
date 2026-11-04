@@ -13,9 +13,15 @@ use Illuminate\Validation\ValidationException;
  * Exception lifecycle in one place: raising an exception also writes
  * the linked timeline event so disruptions show up inline [S7], and
  * resolution stamps the resolver and the resolution time server-side [S8].
+ * Lifecycle changes raise audit entries and customer notifications [S10].
  */
 class ExceptionService
 {
+    public function __construct(
+        private NotificationService $notifications,
+        private AuditLogger $audit,
+    ) {}
+
     /**
      * @param  array<string, mixed>  $data
      */
@@ -42,6 +48,18 @@ class ExceptionService
                 'exception_id' => $exception->id,
             ]);
 
+            $this->audit->record($creator, 'exception.created', $exception, [
+                'type' => $exception->type->value,
+                'severity' => $exception->severity->value,
+            ]);
+
+            $this->notifications->notifyCustomer(
+                $shipment,
+                'EXCEPTION_CREATED',
+                $exception->type->label().' on '.$shipment->shipment_number,
+                'Severity '.$exception->severity->value.(! empty($data['description']) ? ' — '.$data['description'] : ''),
+            );
+
             return $exception;
         });
     }
@@ -53,9 +71,10 @@ class ExceptionService
     {
         return DB::transaction(function () use ($exception, $data, $user) {
             $newStatus = isset($data['status']) ? ExceptionStatus::from($data['status']) : null;
+            $oldStatus = $exception->status;
 
             if ($newStatus !== null) {
-                $this->assertLifecycleAllowed($exception->status, $newStatus);
+                $this->assertLifecycleAllowed($oldStatus, $newStatus);
             }
 
             $exception->update([
@@ -65,6 +84,22 @@ class ExceptionService
                 'resolved_at' => $newStatus === ExceptionStatus::Resolved ? now() : $exception->resolved_at,
                 'resolved_by' => $newStatus === ExceptionStatus::Resolved ? $user->id : $exception->resolved_by,
             ]);
+
+            if ($newStatus !== null && $newStatus !== $oldStatus) {
+                $this->audit->record($user, 'exception.status_changed', $exception, [
+                    'from' => $oldStatus->value,
+                    'to' => $newStatus->value,
+                ]);
+            }
+
+            if ($newStatus === ExceptionStatus::Resolved) {
+                $this->notifications->notifyCustomer(
+                    $exception->shipment,
+                    'EXCEPTION_RESOLVED',
+                    $exception->type->label().' resolved on '.$exception->shipment->shipment_number,
+                    'Resolution took '.number_format($exception->detected_at->floatDiffInHours($exception->resolved_at), 1).'H.',
+                );
+            }
 
             return $exception->refresh();
         });

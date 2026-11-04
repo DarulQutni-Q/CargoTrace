@@ -1,27 +1,60 @@
 <x-layouts.app title="Dashboard">
-    <div class="mx-auto max-w-3xl space-y-6 p-6">
-        <section class="rounded-xl border border-line bg-surface p-6">
-            <h2 class="text-xl font-semibold">Welcome back, {{ auth()->user()->name }}</h2>
-            <p class="mt-1.5 text-sm leading-relaxed text-ink-2">
-                You are signed in as {{ auth()->user()->role->label() }}.
-                The operations room takes shape milestone by milestone — shipments, tracking,
-                and the live map land next.
-            </p>
-        </section>
+    <div class="space-y-6 p-6">
+        <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+            @foreach ([
+                'Total shipments' => $stats['total'],
+                'In transit' => $stats['in_transit'],
+                'Delivered' => $stats['delivered'],
+                'Delayed' => $stats['delayed'],
+                'Open exceptions' => $stats['open_exceptions'],
+            ] as $label => $value)
+                <div class="rounded-xl border border-line bg-surface p-4">
+                    <p class="text-xs text-ink-2">{{ $label }}</p>
+                    <p class="mt-1.5 font-mono text-3xl tabular-nums text-ink">{{ $value }}</p>
+                </div>
+            @endforeach
+        </div>
 
-        <section class="grid gap-4 sm:grid-cols-3">
-            <div class="rounded-xl border border-line bg-surface p-5">
-                <p class="text-xs font-medium text-ink-2">Next up</p>
-                <p class="mt-2 text-sm leading-relaxed text-ink">Shipments, carriers, and locations with role-based access</p>
-            </div>
-            <div class="rounded-xl border border-line bg-surface p-5">
-                <p class="text-xs font-medium text-ink-2">Then</p>
-                <p class="mt-2 text-sm leading-relaxed text-ink">Tracking events, the timeline, and validated status transitions</p>
-            </div>
-            <div class="rounded-xl border border-line bg-surface p-5">
-                <p class="text-xs font-medium text-ink-2">After that</p>
-                <p class="mt-2 text-sm leading-relaxed text-ink">Delay rules, exceptions, the live map, and the dashboard metrics</p>
+        <div class="grid gap-6 lg:grid-cols-2">
+            <section class="rounded-xl border border-line bg-surface p-5">
+                <h2 class="text-sm font-medium text-ink-2">Shipments by status</h2>
+                <div class="mt-4 h-52">
+                    <canvas id="chart-by-status" data-chart='@json($byStatus)'></canvas>
+                </div>
+            </section>
+
+            <section class="rounded-xl border border-line bg-surface p-5">
+                <h2 class="text-sm font-medium text-ink-2">Shipments by carrier</h2>
+                <div class="mt-4 h-52">
+                    <canvas id="chart-by-carrier" data-chart='@json($byCarrier)'></canvas>
+                </div>
+            </section>
+        </div>
+
+        <section class="rounded-xl border border-line bg-surface p-5">
+            <h2 class="text-sm font-medium text-ink-2">Rates</h2>
+            <div class="mt-4 grid gap-6 sm:grid-cols-2">
+                <div>
+                    <div class="flex items-baseline justify-between text-xs">
+                        <span class="text-ink-2">Delay rate</span>
+                        <span class="font-mono text-ink">{{ $delayRate }}%</span>
+                    </div>
+                    <div class="mt-2 h-1 rounded-full bg-raised">
+                        <div class="h-1 rounded-full bg-warn" style="width: {{ $delayRate }}%"></div>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex items-baseline justify-between text-xs">
+                        <span class="text-ink-2">Exception rate</span>
+                        <span class="font-mono text-ink">{{ $exceptionRate }}%</span>
+                    </div>
+                    <div class="mt-2 h-1 rounded-full bg-raised">
+                        <div class="h-1 rounded-full bg-danger" style="width: {{ $exceptionRate }}%"></div>
+                    </div>
+                </div>
             </div>
         </section>
     </div>
+
+    @vite('resources/js/dashboard.js')
 </x-layouts.app>
