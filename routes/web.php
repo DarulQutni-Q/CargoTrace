@@ -22,6 +22,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/', DashboardController::class)->name('dashboard');
 
     Route::resource('shipments', ShipmentController::class);
+    Route::post('shipments/{shipment}/tracking', [ShipmentController::class, 'storeTracking'])
+        ->name('shipments.tracking.store');
 
     Route::middleware('role:ADMIN')->group(function () {
         Route::resource('carriers', CarrierController::class)->except(['show']);

@@ -31,6 +31,15 @@ class ShipmentPolicy
         return $user->isAdmin() || $user->isOperator();
     }
 
+    /**
+     * Recording tracking events is staff work — customers read the
+     * timeline, they never write it.
+     */
+    public function addTracking(User $user, Shipment $shipment): bool
+    {
+        return $user->isAdmin() || $user->isOperator();
+    }
+
     public function delete(User $user, Shipment $shipment): bool
     {
         return $user->isAdmin();

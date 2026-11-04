@@ -88,5 +88,82 @@
                 </div>
             </section>
         </div>
+
+        <section class="rounded-xl border border-line bg-surface p-6">
+            <div class="flex items-center justify-between">
+                <h3 class="text-sm font-medium text-ink-2">Timeline</h3>
+                @if ($lastEvent)
+                    <span class="font-mono text-xs text-ink-3">Current position: {{ $lastEvent->location_name }}</span>
+                @endif
+            </div>
+
+            @if ($lastEvent)
+                <ol class="relative mt-5 space-y-5 border-l border-line pl-5">
+                    @foreach ($shipment->trackingEvents as $event)
+                        <li class="relative">
+                            <span class="absolute -left-[25.5px] top-1.5 size-2.5 rounded-full {{ $loop->last ? 'bg-live ring-4 ring-live/20' : 'border border-line-strong bg-raised' }}"></span>
+                            <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                <span class="font-mono text-xs text-ink-3">{{ $event->occurred_at->format('M j, Y · H:i') }}</span>
+                                <span class="font-mono text-xs text-ink-2">{{ $event->event_type }}</span>
+                            </div>
+                            <p class="mt-1 text-sm text-ink">{{ $event->location_name }}</p>
+                            @if ($event->description)
+                                <p class="mt-0.5 text-xs leading-relaxed text-ink-2">{{ $event->description }}</p>
+                            @endif
+                            <p class="mt-1 text-[11px] text-ink-3">Recorded by {{ $event->creator->name }}</p>
+                        </li>
+                    @endforeach
+                </ol>
+            @else
+                <p class="mt-4 text-sm text-ink-3">No tracking events recorded yet</p>
+            @endif
+
+            @can('addTracking', $shipment)
+                <form method="POST" action="{{ route('shipments.tracking.store', $shipment) }}"
+                      class="mt-6 grid gap-3 border-t border-line pt-5 sm:grid-cols-2">
+                    @csrf
+                    <div>
+                        <label for="event_type" class="mb-1.5 block text-xs font-medium text-ink-2">Status / event</label>
+                        <select id="event_type" name="event_type"
+                                class="w-full rounded-lg border border-line bg-raised px-3 py-2 text-sm text-ink focus:border-line-strong focus:outline-none focus:ring-2 focus:ring-accent/50">
+                            @foreach (\App\Enums\ShipmentStatus::cases() as $status)
+                                <option value="{{ $status->value }}" @selected(old('event_type', $shipment->current_status->value) === $status->value)>
+                                    {{ $status->label() }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('event_type') <p class="mt-1.5 text-xs text-danger">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label for="occurred_at" class="mb-1.5 block text-xs font-medium text-ink-2">Occurred at</label>
+                        <x-input id="occurred_at" name="occurred_at" type="datetime-local" value="{{ old('occurred_at', now()->format('Y-m-d\TH:i')) }}"/>
+                        @error('occurred_at') <p class="mt-1.5 text-xs text-danger">{{ $message }}</p> @enderror
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label for="location_name" class="mb-1.5 block text-xs font-medium text-ink-2">Location</label>
+                        <x-input id="location_name" name="location_name" value="{{ old('location_name', $lastEvent?->location_name) }}" placeholder="Transit hub, Singapore"/>
+                        @error('location_name') <p class="mt-1.5 text-xs text-danger">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label for="latitude" class="mb-1.5 block text-xs font-medium text-ink-2">Latitude</label>
+                        <x-input id="latitude" name="latitude" type="number" step="0.000001" value="{{ old('latitude') }}" placeholder="optional"/>
+                        @error('latitude') <p class="mt-1.5 text-xs text-danger">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label for="longitude" class="mb-1.5 block text-xs font-medium text-ink-2">Longitude</label>
+                        <x-input id="longitude" name="longitude" type="number" step="0.000001" value="{{ old('longitude') }}" placeholder="optional"/>
+                        @error('longitude') <p class="mt-1.5 text-xs text-danger">{{ $message }}</p> @enderror
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label for="description" class="mb-1.5 block text-xs font-medium text-ink-2">Description</label>
+                        <x-input id="description" name="description" value="{{ old('description') }}" placeholder="What happened at this point"/>
+                        @error('description') <p class="mt-1.5 text-xs text-danger">{{ $message }}</p> @enderror
+                    </div>
+                    <div class="sm:col-span-2">
+                        <x-button>Record event</x-button>
+                    </div>
+                </form>
+            @endcan
+        </section>
     </div>
 </x-layouts.app>

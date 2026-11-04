@@ -91,6 +91,38 @@ class OpsSeeder extends Seeder
                 'weight_kg' => 400 + $index * 221.25,
                 'volume_m3' => 6 + $index * 1.4,
             ]);
+
+            // A believable journey: each status beyond CREATED has the
+            // events that would have produced it, in chronological order.
+            $events = [];
+
+            if (in_array($status, [ShipmentStatus::Booked, ShipmentStatus::PickedUp, ShipmentStatus::InTransit, ShipmentStatus::Delivered], true)) {
+                $events[] = [ShipmentStatus::Booked->value, (clone $departure)->modify('-2 days'), $locations->firstWhere('code', $origin)->name, null, null, 'Booking confirmed'];
+            }
+            if (in_array($status, [ShipmentStatus::PickedUp, ShipmentStatus::InTransit, ShipmentStatus::Delivered], true)) {
+                $originLocation = $locations->firstWhere('code', $origin);
+                $events[] = [ShipmentStatus::PickedUp->value, (clone $departure)->modify('-4 hours'), $originLocation->name, (string) $originLocation->latitude, (string) $originLocation->longitude, 'Cargo picked up and sealed'];
+            }
+            if (in_array($status, [ShipmentStatus::InTransit, ShipmentStatus::Delivered], true)) {
+                $events[] = [ShipmentStatus::InTransit->value, (clone $departure)->modify('+9 hours'), "Departed {$locations->firstWhere('code', $origin)->city}", null, null, null];
+                $events[] = ['INFO', (clone $departure)->modify("+{$transitDays} hours"), 'Mid-route position report', null, null, 'Carrier telemetry check-in'];
+            }
+            if ($status === ShipmentStatus::Delivered) {
+                $destinationLocation = $locations->firstWhere('code', $destination);
+                $events[] = [ShipmentStatus::Delivered->value, (clone $arrival)->modify('-3 hours'), $destinationLocation->name, (string) $destinationLocation->latitude, (string) $destinationLocation->longitude, 'Proof of delivery signed'];
+            }
+
+            foreach ($events as [$type, $at, $location, $lat, $lng, $description]) {
+                $shipment->trackingEvents()->create([
+                    'event_type' => $type,
+                    'occurred_at' => $at,
+                    'location_name' => $location,
+                    'latitude' => $lat,
+                    'longitude' => $lng,
+                    'description' => $description,
+                    'created_by' => $customers->first()->id,
+                ]);
+            }
         }
     }
 }

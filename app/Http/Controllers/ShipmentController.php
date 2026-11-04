@@ -4,19 +4,24 @@ namespace App\Http\Controllers;
 
 use App\Enums\ShipmentStatus;
 use App\Http\Requests\StoreShipmentRequest;
+use App\Http\Requests\StoreTrackingRequest;
 use App\Http\Requests\UpdateShipmentRequest;
 use App\Models\Carrier;
 use App\Models\Location;
 use App\Models\Shipment;
 use App\Models\User;
 use App\Services\ShipmentService;
+use App\Services\TrackingService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 class ShipmentController extends Controller
 {
-    public function __construct(private ShipmentService $shipments) {}
+    public function __construct(
+        private ShipmentService $shipments,
+        private TrackingService $tracking,
+    ) {}
 
     /**
      * The tracking screen: role-scoped list on the left, the live map
@@ -75,9 +80,23 @@ class ShipmentController extends Controller
     {
         $visible = Shipment::query()->visibleTo($request->user())->findOrFail($shipment->id);
 
-        $visible->load(['origin', 'destination', 'carrier', 'customer', 'items']);
+        $visible->load(['origin', 'destination', 'carrier', 'customer', 'items', 'trackingEvents.creator']);
 
-        return view('shipments.show', ['shipment' => $visible]);
+        return view('shipments.show', [
+            'shipment' => $visible,
+            'lastEvent' => $visible->trackingEvents->last(),
+        ]);
+    }
+
+    /**
+     * Staff append tracking events from the shipment page; the service
+     * owns every business rule, the controller only routes input.
+     */
+    public function storeTracking(StoreTrackingRequest $request, Shipment $shipment): RedirectResponse
+    {
+        $this->tracking->addEvent($shipment, $request->validated(), $request->user());
+
+        return redirect()->route('shipments.show', $shipment)->with('status', 'Tracking event recorded.');
     }
 
     public function edit(Request $request, Shipment $shipment): View
