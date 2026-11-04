@@ -14,14 +14,16 @@ class StoreShipmentRequest extends FormRequest
     }
 
     /**
-     * The shipment number is generated server-side so nobody can forge
-     * or collide with one; status never comes from user input.
+     * The shipment number may be supplied (API clients) or generated
+     * server-side (web form); either way uniqueness is enforced and
+     * status never comes from user input.
      *
      * @return array<string, array<int, mixed>>
      */
     public function rules(): array
     {
         return [
+            'shipment_number' => ['sometimes', 'nullable', 'string', 'max:30', 'unique:shipments,shipment_number'],
             'customer_id' => ['required', Rule::exists('users', 'id')],
             'carrier_id' => ['required', Rule::exists('carriers', 'id')],
             'origin_location_id' => ['required', Rule::exists('locations', 'id')],

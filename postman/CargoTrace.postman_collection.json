@@ -1,0 +1,159 @@
+{
+	"info": {
+		"_postman_id": "cargotrace-api-collection",
+		"name": "CargoTrace API",
+		"description": "REST surface for CargoTrace. Set {{base_url}} (default http://localhost:8000) and {{token}} from the login or register response. Every response uses JSON; errors use { message, errors } with 422 for validation, 401/403 for auth, 404 for missing or foreign resources.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{ "key": "base_url", "value": "http://localhost:8000" },
+		{ "key": "token", "value": "" },
+		{ "key": "shipment_id", "value": "1" },
+		{ "key": "exception_id", "value": "1" }
+	],
+	"item": [
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Register (creates a customer)",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Accept", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"name\": \"Dewi Anggraini\",\n  \"email\": \"dewi@example.com\",\n  \"password\": \"supreme-password\",\n  \"password_confirmation\": \"supreme-password\"\n}", "options": { "raw": { "language": "json" } } },
+						"url": "{{base_url}}/api/register"
+					}
+				},
+				{
+					"name": "Login",
+					"event": [{ "listen": "test", "script": { "exec": ["const body = pm.response.json();", "if (body.token) pm.collectionVariables.set('token', body.token);"] } }],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Accept", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"email\": \"operator@cargotrace.test\",\n  \"password\": \"password\"\n}", "options": { "raw": { "language": "json" } } },
+						"url": "{{base_url}}/api/login"
+					}
+				},
+				{
+					"name": "Current user",
+					"request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] }, "method": "GET", "url": "{{base_url}}/api/user" }
+				},
+				{
+					"name": "Logout (revokes token)",
+					"request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] }, "method": "POST", "url": "{{base_url}}/api/logout" }
+				}
+			]
+		},
+		{
+			"name": "Shipments",
+			"item": [
+				{
+					"name": "List (filters: shipment_number, status, carrier_id, origin, destination, delayed, date_from, date_to, sort, page, per_page)",
+					"request": {
+						"auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
+						"method": "GET",
+						"url": { "raw": "{{base_url}}/api/shipments?status=IN_TRANSIT&delayed=1&per_page=15", "host": ["{{base_url}}"], "path": ["api", "shipments"], "query": [{ "key": "status", "value": "IN_TRANSIT" }, { "key": "delayed", "value": "1" }, { "key": "per_page", "value": "15" }] }
+					}
+				},
+				{
+					"name": "Create",
+					"request": {
+						"auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
+						"method": "POST",
+						"header": [{ "key": "Accept", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"shipment_number\": \"CTAPI00001X\",\n  \"customer_id\": 3,\n  \"carrier_id\": 1,\n  \"origin_location_id\": 1,\n  \"destination_location_id\": 5,\n  \"cargo_type\": \"Electronics\",\n  \"weight_kg\": 900.5,\n  \"volume_m3\": 14.2,\n  \"expected_departure_at\": \"2026-11-10T08:30\",\n  \"expected_arrival_at\": \"2026-11-28T08:30\",\n  \"items\": [{ \"description\": \"Palletized electronics\", \"quantity\": 24, \"weight_kg\": 480, \"volume_m3\": 9.5 }]\n}", "options": { "raw": { "language": "json" } } },
+						"url": "{{base_url}}/api/shipments"
+					}
+				},
+				{
+					"name": "Show",
+					"request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] }, "method": "GET", "url": "{{base_url}}/api/shipments/{{shipment_id}}" }
+				},
+				{
+					"name": "Update (status changes only via tracking)",
+					"request": {
+						"auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
+						"method": "PUT",
+						"header": [{ "key": "Accept", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"estimated_arrival_at\": \"2026-11-29T14:00\"\n}", "options": { "raw": { "language": "json" } } },
+						"url": "{{base_url}}/api/shipments/{{shipment_id}}"
+					}
+				},
+				{
+					"name": "Archive (admin only)",
+					"request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] }, "method": "DELETE", "url": "{{base_url}}/api/shipments/{{shipment_id}}" }
+				},
+				{
+					"name": "Tracking list (chronological)",
+					"request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] }, "method": "GET", "url": "{{base_url}}/api/shipments/{{shipment_id}}/tracking" }
+				},
+				{
+					"name": "Add tracking event (validates transitions)",
+					"request": {
+						"auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
+						"method": "POST",
+						"header": [{ "key": "Accept", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"event_type\": \"IN_TRANSIT\",\n  \"occurred_at\": \"2026-11-12T09:00\",\n  \"location_name\": \"Departed Singapore\",\n  \"latitude\": 1.3644,\n  \"longitude\": 103.9915,\n  \"description\": \"Loaded onto MA-221\"\n}", "options": { "raw": { "language": "json" } } },
+						"url": "{{base_url}}/api/shipments/{{shipment_id}}/tracking"
+					}
+				},
+				{
+					"name": "Exceptions list",
+					"request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] }, "method": "GET", "url": "{{base_url}}/api/shipments/{{shipment_id}}/exceptions" }
+				},
+				{
+					"name": "Raise exception",
+					"request": {
+						"auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
+						"method": "POST",
+						"header": [{ "key": "Accept", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"type\": \"CUSTOMS_HOLD\",\n  \"severity\": \"HIGH\",\n  \"detected_at\": \"2026-11-12T10:00\",\n  \"description\": \"Physical inspection at Rotterdam\"\n}", "options": { "raw": { "language": "json" } } },
+						"url": "{{base_url}}/api/shipments/{{shipment_id}}/exceptions"
+					}
+				}
+			]
+		},
+		{
+			"name": "Exceptions",
+			"item": [
+				{
+					"name": "Update (OPEN → INVESTIGATING → RESOLVED)",
+					"request": {
+						"auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
+						"method": "PATCH",
+						"header": [{ "key": "Accept", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"status\": \"RESOLVED\"\n}", "options": { "raw": { "language": "json" } } },
+						"url": "{{base_url}}/api/exceptions/{{exception_id}}"
+					}
+				}
+			]
+		},
+		{
+			"name": "Master data",
+			"item": [
+				{ "name": "Carriers list (staff)", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] }, "method": "GET", "url": "{{base_url}}/api/carriers" } },
+				{
+					"name": "Create carrier (admin)",
+					"request": {
+						"auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
+						"method": "POST",
+						"header": [{ "key": "Accept", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"name\": \"Meridian Air Cargo\",\n  \"code\": \"MAC\",\n  \"service_type\": \"AIR\"\n}", "options": { "raw": { "language": "json" } } },
+						"url": "{{base_url}}/api/carriers"
+					}
+				},
+				{ "name": "Locations list (staff)", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] }, "method": "GET", "url": "{{base_url}}/api/locations" } },
+				{
+					"name": "Create location (admin)",
+					"request": {
+						"auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
+						"method": "POST",
+						"header": [{ "key": "Accept", "value": "application/json" }],
+						"body": { "mode": "raw", "raw": "{\n  \"name\": \"Port of Rotterdam\",\n  \"code\": \"RTM\",\n  \"city\": \"Rotterdam\",\n  \"country\": \"Netherlands\",\n  \"latitude\": 51.9496,\n  \"longitude\": 4.1425\n}", "options": { "raw": { "language": "json" } } },
+						"url": "{{base_url}}/api/locations"
+					}
+				}
+			]
+		}
+	]
+}

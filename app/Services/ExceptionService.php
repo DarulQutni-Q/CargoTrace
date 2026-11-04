@@ -37,7 +37,7 @@ class ExceptionService
                 'occurred_at' => $exception->detected_at,
                 'location_name' => $data['location_name'] ?? ($lastEvent?->location_name ?? $shipment->origin->name),
                 'description' => $exception->type->label().' raised ('.$exception->severity->value.
-                    ($data['description'] ? '): '.$data['description'] : ')'),
+                    (! empty($data['description']) ? '): '.$data['description'] : ')'),
                 'created_by' => $creator->id,
                 'exception_id' => $exception->id,
             ]);
