@@ -35,15 +35,3 @@ where the project's own code begins.
 | PHPUnit | BSD-3-Clause | https://phpunit.de | Test framework shipped with Laravel |
 | Docker Compose | Apache-2.0 | https://docs.docker.com/compose | Local MySQL service definition |
 
-## Design reference
-
-The dashboard's visual direction follows a reference screenshot supplied by the
-project owner (`design/reference-tracking-dashboard.png`). Layout ideas were
-translated into original Blade/Tailwind code; no markup, images, or assets were
-copied from it, and the carrier brands visible in the reference (DHL, Emirates,
-FedEx, UPS, Qatar Airways) are deliberately replaced with fictional carriers.
-
-## Scope of this repository's own work
-
-Migrations, models, controllers, services, Blade views, Tailwind tokens, tests,
-and all documentation under `docs/` are original work produced for this project.
