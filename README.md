@@ -1,72 +1,61 @@
 # CargoTrace
 
-Global shipment visibility and tracking for a logistics operation — the
-final project for Web Programming 2 (UAS).
+Real-time supply chain and shipment visibility web application for the
+Web Programming 2 final project (UAS). Laravel 12 + MySQL 8, Blade views,
+Sanctum API tokens, Leaflet + OpenStreetMap, Chart.js.
 
-Logistics teams lose track of shipments because the information lives in
-phone calls, spreadsheets, and carrier portals. Customers cannot see
-where their cargo is. Delays surface too late. CargoTrace puts every
-shipment in one place: a tracked lifecycle, a historical journey
-timeline, a live world map, deterministic delay detection, exception
-management, and an operations dashboard — with a REST API for programmatic
-access.
+Live deployment: **http://43.173.52.180:3000**
 
-## Features
+## What it does
 
-- **Shipment lifecycle & 1-click progression** — `CREATED → BOOKED → PICKED_UP → IN_TRANSIT →
-  DELIVERED`, transitions validated server-side against a single allowed
-  map (`DELIVERED` is terminal), with a 1-click `Advance → Next Status` action for operators.
-- **Multi-leg corridor & Planned Transit Stops** — append-only tracking timeline (never overwritten),
-  chronological validation, optional **Intermediate Transit Stop / Via Hub** at booking/edit time
-  (`Origin ━━▶ Transit Stop ╌╌▶ Destination`), and great-circle Haversine distance + ETA calculator.
-- **38 Indonesian Provinces & Regional Hub Catalog** — searchable registry of 110+ Indonesian
-  Kabupaten/Kota/Ports (Aceh: Bireuen, Krueng Geukuh, Lhokseumawe, Sabang, Malahayati, etc.) and
-  international maritime/air hubs with province filtering and 1-click activation.
-- **ETA & delay rule** — deterministic classification (LOW / MEDIUM /
-  HIGH) from configurable thresholds shown with the reason and values used.
-- **Exceptions** — the six brief-mandated types with an OPEN →
-  INVESTIGATING → RESOLVED lifecycle and server-stamped resolution.
-- **World map & Dual External APIs** — Leaflet with adaptive White/Dark Esri/OSM tiles, great-circle routes,
-  live position markers, popups; geocoding through **OpenStreetMap Nominatim** and live marine/corridor
-  weather via **Open-Meteo** with explicit timeout/error/fallback handling.
-- **Official Printable Bill of Lading (e-B/L)** — 1-click printable Waybill & itemized Cargo Manifest
-  with auto-synced manifest weight/volume totals.
-- **Dashboard & Customer Portal** — real database numbers (0-shipment clean state for new registrations),
-  role-scoped analytics, Customer self-service shipment booking request (`CREATED`), and Waybill Resi
-  linking (`Link & Track Resi`).
-- **Dual Theme Design System** — **White Mode** (`#FFFFFF`) default with instant **Dark Mode** (`#080B0C`)
-  toggle and `#C6F432` industrial chartreuse accents engineered for WCAG AAA readability.
+- **Roles & authorization** — Admin, Logistics Operator, Customer. Every
+  route is authorized server-side; customers only ever see their own
+  shipments (policy + query scoping, verified by automated tests).
+- **Shipment lifecycle** — CREATED → BOOKED → PICKED_UP → IN_TRANSIT →
+  DELIVERED (terminal). Only the next status is allowed; skipping a status
+  is rejected with 422. Tracking events are append-only and must be in
+  chronological order.
+- **Delay rule** — deterministic, configurable: delay ≤ low threshold =
+  LOW, ≤ high threshold = MEDIUM, beyond = HIGH. Default 6 h / 24 h
+  (see Group scenario).
+- **Exceptions** — the brief's six types (CUSTOMS_HOLD, WEATHER_DELAY,
+  PORT_CONGESTION, DAMAGED, MISROUTED, DOCUMENTATION_ISSUE) with severity
+  and OPEN → INVESTIGATING → RESOLVED, detection and resolution times.
+- **Map** — Leaflet + OpenStreetMap tiles with attribution, origin /
+  destination markers, transit stops and the corridor route. No API key.
+- **External integrations** — Nominatim geocoding and Open-Meteo weather
+  through the Laravel HTTP Client (5 s timeout, errors and empty responses
+  handled, fallback values labelled "cached"). Weather is informational
+  only and is never used as delay evidence.
+- **Dashboard** — real data from the database: counts by status, on-time
+  vs delayed by carrier, overdue unpaid-style watch list, recent activity.
 - **Search & filter** — reference, status, carrier, origin, destination,
-  delay, date range; searchable Port Locations (by province/country), Carriers, and Audit Log.
-- **Notifications** — in-app bell and page for status changes and
-  exception lifecycles on shipments the user may see.
-- **Audit log** — actor, action, entity, and changed values for every
-  important change; administrator only.
-- **REST API** — Sanctum tokens, JSON envelope, 200/201/401/403/404/422
-  semantics, Postman collection included.
-
-### Roles & Login Credentials
-
-Use the following seeded accounts on `/login` (no quick-demo bypass buttons are exposed in the UI):
-
-| Role | Name | Email | Password | Permissions |
-| --- | --- | --- | --- | --- |
-| **Administrator** | Aria Wibowo | `admin@cargotrace.test` | `password` | Full access: users & delay rules, carriers, port locations, all shipments, audit log |
-| **Logistics Operator** | Bimo Santoso | `operator@cargotrace.test` | `password` | Create/update shipments, 1-click advance status, append tracking checkpoints, raise & resolve exceptions |
-| **Customer** | Citra Hapsari | `customer@cargotrace.test` | `password` | View own shipments, request new shipment bookings, link & track resi, print Bill of Lading, view trajectory map & notifications |
-
-Authorization is enforced server-side on every route and `/api/*` endpoint; the interface mirrors what the server allows.
+  date range, delay status, sorting, server-side pagination (10 per page).
+- **Notifications & audit log** — in-app notifications (unread badge,
+  mark read / read all) and an audit trail with actor, action, time,
+  entity and delta.
+- **REST API** — full CRUD under `/api/v1` with Sanctum Bearer tokens,
+  one JSON envelope, 200/201/401/403/404/422. Postman collection in
+  `postman/CargoTrace.postman_collection.json` (login auto-saves the token).
 
 ## Tech stack
 
-PHP 8.3+ · Laravel 12 · Blade · Tailwind CSS v4 · TypeScript / React +
-Fetch · MySQL 8 · Eloquent + migrations/seeders · Laravel Sanctum ·
-Laravel HTTP Client · Leaflet + Esri/OSM tiles · Chart.js · Node Test / PHPUnit.
+| Layer | Choice |
+| --- | --- |
+| Language / framework | PHP 8.2+ (8.3 on the VPS), Laravel 12 |
+| Database | MySQL 8 (Docker, localhost-only) |
+| Auth | Laravel Sanctum personal access tokens (API) + session login (web) |
+| Views | Blade + Tailwind via CDN, no build step |
+| Map | Leaflet 1.9.4 + OpenStreetMap tiles |
+| Charts | Chart.js 4.4.1 |
+| Fonts | Plus Jakarta Sans + JetBrains Mono (Google Fonts) |
+| Tests | PHPUnit 11 via `php artisan test` (SQLite in-memory) |
 
-## Architecture
-
-HTTP handling stays separate from business logic. Controllers validate
-input; services own the rules and the transactions.
+Business rules live in one place each: `ShipmentLifecycleService`
+(transitions + chronology), `DelayClassifierService` (delay rule),
+`ExternalTelemetryService` (geocoding + weather), `IndonesianPortCatalog`
+(presets + 38 provinces). Thresholds live in `config/cargotrace.php`
+and `.env` (`CARGOTRACE_*`), never in code.
 
 ```mermaid
 flowchart LR
@@ -77,11 +66,6 @@ flowchart LR
     Models --> DB[(MySQL)]
     Services --> Ext["External APIs (Nominatim + Open-Meteo)"]
 ```
-
-Business services: `ShipmentService`, `TrackingService`, `EtaService`,
-`ExceptionService`, plus `NotificationService`, `AuditLogger`, and
-`GeocodingService`. Status transitions and the delay thresholds live in
-one place each (`ShipmentStatus::allowedNext()`, `config/cargotrace.php`).
 
 ## Data model
 
@@ -98,92 +82,150 @@ erDiagram
     USERS ||--o{ AUDIT_LOGS : "acts in"
 ```
 
-Every relation and design decision is documented in the codebase and
-defensible in review: unique shipment numbers and carrier/location codes,
-restricting foreign keys, soft delete on shipments only, and indexes for
-the list, timeline, and dashboard queries.
+### Data dictionary
+
+| Table | Key columns | Notes |
+| --- | --- | --- |
+| users | id, name, email (unique), password (bcrypt), role (ADMIN / LOGISTICS_OPERATOR / CUSTOMER) | Sanctum tokens in `personal_access_tokens` |
+| carriers | id, name, code (unique), service_type (SEA / AIR / ROAD), is_active | |
+| locations | id, name, code (unique), city, country, province, latitude, longitude | WGS84 coordinates, indexed for map queries |
+| shipments | id, shipment_number (unique), customer_id (FK users), carrier_id (FK), origin_location_id / destination_location_id (FK locations), current_status, cargo_type, weight_kg, volume_m3, expected_departure_at, expected_arrival_at, estimated_arrival_at, archived_at (nullable) | Status enum CREATED/BOOKED/PICKED_UP/IN_TRANSIT/DELIVERED; DELETE archives instead of removing the row |
+| shipment_items | id, shipment_id (FK), description, quantity, weight_kg, volume_m3 | Cargo manifest, at least one item per shipment |
+| tracking_events | id, shipment_id (FK), user_id (FK), status, event_time, location, notes | Append-only; event_time must be after the previous event |
+| exceptions | id, shipment_id (FK), type (6 brief types), severity (LOW/MEDIUM/HIGH), status (OPEN/INVESTIGATING/RESOLVED), detected_at, resolved_at (nullable) | resolved_at is stamped automatically on RESOLVED |
+| notifications | id, user_id (FK), shipment_id (FK, nullable), title, message, is_read | In-app only |
+| audit_logs | id, user_id (FK, nullable), action, entity_type, entity_id, delta (JSON), created_at | Actor, action, time, entity + change delta |
+| scenario_configs | id, name, low_threshold_hours, high_threshold_hours, route, primary_exception, kpi | One active row; edited from the Scenario page |
+| sessions / cache / jobs | Laravel framework tables | Session driver and cache store are `database` by default |
 
 ## Setup
 
-Requirements: PHP 8.3+, Composer, Node 20+, Docker (for MySQL).
+Requirements: PHP 8.2+ with mbstring, xml, sqlite3, mysql, curl, zip,
+bcmath, intl; Composer 2; Docker (for MySQL) or a local MySQL 8 server.
 
 ```bash
 git clone <repository-url> && cd cargotrace
 composer install
-cp .env.example .env            # adjust credentials if needed
+cp .env.example .env            # set DB_PASSWORD to your MySQL password
 php artisan key:generate
-docker compose up -d            # MySQL 8.4 on 127.0.0.1:3306
+
+# MySQL 8 (Docker, localhost-only, named volume)
+docker run -d --name cargotrace-db --restart unless-stopped \
+  -e MYSQL_ROOT_PASSWORD=<root-password> \
+  -e MYSQL_DATABASE=cargotrace \
+  -e MYSQL_USER=cargotrace -e MYSQL_PASSWORD=<app-password> \
+  -p 127.0.0.1:3306:3306 -v cargotrace-mysql:/var/lib/mysql mysql:8.0
+
 php artisan migrate --seed      # schema + demo data
-npm install && npm run build
-php artisan serve               # http://localhost:8000
+php artisan serve --host=0.0.0.0 --port=3000   # http://localhost:3000
 ```
 
-### Demo accounts (password: `password`)
+No Node build step: Tailwind, Leaflet and Chart.js load from CDN.
+
+### Demo accounts (password: `password123`)
 
 | Role | Email |
 | --- | --- |
-| Administrator | admin@cargotrace.test |
-| Logistics Operator | operator@cargotrace.test |
-| Customer | customer@cargotrace.test |
+| Administrator | admin@cargotrace.io |
+| Logistics Operator | operator@cargotrace.io |
+| Customer | customer@cargotrace.io |
+| Customer | dewi@cargotrace.io |
 
-The seeder builds a Southeast Asia → Europe & Indonesian Regional corridor:
-carriers across SEA/AIR/ROAD modes, real port locations with WGS84 coordinates
-(including Aceh & 38 Indonesian provinces), 14 shipments across every status
-including on-time and delayed estimates, believable tracking events, and
-open, investigating, and resolved exceptions. Newly registered Customer accounts
-start with 0 shipments and can request new bookings or link existing waybill numbers.
+The seeder builds a Southeast Asia → Europe & Indonesian regional
+corridor: 5 carriers (SEA/AIR/ROAD), 12 port locations with WGS84
+coordinates, 14 shipments across every status (on-time and delayed),
+34 tracking events, 6 exceptions covering all six brief types, and 4
+notifications. Newly registered accounts start as Customer with 0
+shipments and can request new bookings.
 
 ## Tests
 
 ```bash
-npm test                # Domain business rules test suite (lifecycle, chronology, ETA delay rule, exceptions)
-php artisan test        # 69 tests: auth, CRUD, authorization, transitions,
-                        # chronology, ETA rule, exceptions, API, map data
+php artisan test        # 29 tests, 137 assertions: auth, CRUD,
+                        # authorization, transitions, chronology, ETA/delay
+                        # rule, exceptions, API, map data
 ```
 
-The suite runs on SQLite in-memory for speed; the application itself runs
-on MySQL 8. Negative cases are covered too: invalid logins, invalid status
-transitions, out-of-order events, foreign-resource access, and geocoding
-timeouts, errors, and empty responses.
+The suite runs on SQLite in-memory for speed; the application itself
+runs on MySQL 8. Negative cases are covered too: invalid logins,
+invalid status transitions, out-of-order events, foreign-resource
+access (customer isolation), and geocoding timeouts, errors, and empty
+responses.
 
 ## API
 
-`postman/CargoTrace.postman_collection.json` covers every endpoint — set
-`{{base_url}}`, run **Login** (the token is captured automatically), and
-explore. Highlights:
+`postman/CargoTrace.postman_collection.json` covers every endpoint —
+set `{{base_url}}`, run **Login** (the token is captured automatically),
+and explore. Highlights:
 
 ```
-POST   /api/register                 POST   /api/login
-POST   /api/logout                   GET    /api/user
-GET    /api/shipments?status=&delayed=&sort=...
-POST   /api/shipments                GET/PUT/DELETE /api/shipments/{id}
-GET/POST /api/shipments/{id}/tracking
-GET/POST /api/shipments/{id}/exceptions
-PATCH  /api/exceptions/{id}          GET/POST /api/carriers  GET/POST /api/locations
+POST   /api/v1/register              POST   /api/v1/login
+POST   /api/v1/logout                GET    /api/v1/user
+GET    /api/v1/shipments?status=&delayed=&sort=&q=&date_from=&date_to=
+POST   /api/v1/shipments             GET    /api/v1/shipments/{id}
+PUT/PATCH /api/v1/shipments/{id}     DELETE /api/v1/shipments/{id}   (archive)
+GET    /api/v1/shipments/map         GET    /api/v1/shipments/{id}/tracking
+POST   /api/v1/shipments/{id}/tracking-events
+GET    /api/v1/shipments/{id}/exceptions
+POST   /api/v1/shipments/{id}/exceptions
+PATCH  /api/v1/exceptions/{id}       GET/POST /api/v1/carriers
+GET    /api/v1/locations             POST   /api/v1/locations
+GET    /api/v1/locations/catalog     GET    /api/v1/health
 ```
 
-Errors use one JSON envelope (`message` + field `errors`), validation
-failures return 422, unauthorized access 401/403, and unknown or
-foreign-owned resources 404.
+Errors use one JSON envelope (`status` + `message`, validation failures
+add field `errors`), validation failures return 422, unauthenticated
+access 401, forbidden 403, and unknown or foreign-owned resources 404.
+Customers may create shipments (forced under their own id, status
+CREATED); only Admin / Logistics Operator may advance status, add
+tracking events, raise or resolve exceptions, or create carriers and
+locations.
 
 ## Group scenario
 
 Delay thresholds, route, primary exception, and KPI come from
-`config/cargotrace.php` + `.env` (`CARGOTRACE_*`) — never from code. The
-brief's example defaults are LOW ≤ 6 h, MEDIUM ≤ 24 h, HIGH beyond; the
-lecturer's group values replace them without touching a line of PHP.
+`config/cargotrace.php` + `.env` (`CARGOTRACE_*`) and from the
+**Scenario & users** page (admin only) — never from code. Presets match
+the brief's slide 23 examples:
+
+| Preset | Route | Low / High | Primary exception | KPI |
+| --- | --- | --- | --- | --- |
+| DEFAULT | SEA → Europe | 6 h / 24 h | CUSTOMS_HOLD | On-Time Delivery Rate |
+| GROUP_A | SEA → Europe | 12 h / 24 h | CUSTOMS_HOLD | On-Time Delivery Rate |
+| GROUP_B | Asia → North America | 18 h / 36 h | WEATHER_DELAY | Average Delay Duration |
+| GROUP_C | SEA → Australia | 24 h / 48 h | DOCUMENTATION_ISSUE | Exception Resolution Time |
+
+Pick the preset for your group on the Scenario page, or set a custom
+rule (high threshold must be greater than low). Changing the rule writes
+a `SCENARIO_UPDATED` audit entry.
 
 ## Deployment
 
-The app targets a standard PHP/Node host: set the environment variables from
-`.env.example`, point `DB_*` at MySQL 8, run `php artisan migrate --seed`,
-build assets with `npm run build`, and serve the application. Secrets stay in
-the environment; nothing in the repository needs changing per host.
+The live deployment runs on a VPS (Ubuntu 24.04) as a systemd service:
+
+- MySQL 8 in Docker (`cargotrace-db`, `mysql:8.0`, volume
+  `cargotrace-mysql`, bound to 127.0.0.1:3306 only).
+- App: `cargotrace.service` runs `php artisan serve --host=0.0.0.0
+  --port=3000` from the repo directory, `Restart=always`,
+  `APP_ENV=production`, `APP_DEBUG=false`.
+- Secrets live only in the server `.env` (never committed; see
+  `.env.example` for the full list). No secrets are committed to the
+  repo.
 
 ## Known limitations & future work
 
 - Notifications are in-app only; external email/webhook delivery is future work.
-- Live weather telemetry (Open-Meteo) is strictly informational and is explicitly **not** used as delay evidence (delays are determined solely by `estimated_arrival_at` vs `expected_arrival_at`).
+- Live weather telemetry (Open-Meteo) is strictly informational and is
+  explicitly **not** used as delay evidence (delays are determined solely
+  by `estimated_arrival_at` vs `expected_arrival_at`); when the API is
+  unreachable the page shows fallback values labelled "cached".
+- `DELETE /api/v1/shipments/{id}` archives the shipment (`archived_at`)
+  instead of removing it, so history and audit references stay intact;
+  archived shipments are excluded from lists.
+- Positions on the map are port coordinates and corridor waypoints, not
+  live GPS positions of vehicles or vessels.
+- The app is served with `php artisan serve` behind no reverse proxy;
+  a production setup would use nginx + PHP-FPM and HTTPS.
 
 ## Attribution
 

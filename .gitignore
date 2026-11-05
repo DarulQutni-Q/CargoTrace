@@ -37,3 +37,6 @@ Thumbs.db
 # AI Studio artifacts
 .aistudio/
 public/assets/aistudio/
+
+/bootstrap/cache
+/storage/framework

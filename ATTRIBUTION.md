@@ -11,27 +11,23 @@ where the project's own code begins.
 | Laravel | MIT | https://laravel.com | Application framework: routing, Eloquent, validation, authentication primitives |
 | Blade (part of Laravel) | MIT | https://laravel.com | View templating |
 | Laravel Sanctum | MIT | https://laravel.com/docs/sanctum | API token authentication for the REST surface |
-| Blade Lucide Icons (mallardduck/blade-lucide-icons) | MIT | https://github.com/mallardduck/blade-lucide-icons | Blade components for the Lucide icon set (the only icon set in the UI) |
-| Leaflet | BSD-2-Clause | https://leafletjs.com | Interactive world map on the tracking screen |
+| Leaflet | BSD-2-Clause | https://leafletjs.com | Interactive world map on the shipments and tracking screens |
 | Chart.js | MIT | https://www.chartjs.org | Dashboard charts (shipments by status/carrier) |
-| Esri World Dark Gray Canvas tiles | Esri terms (attribution required) | https://www.arcgis.com/home/item.html?id=2afe5b083d53490d8c7f44ea8f66fbf9 | Dark basemap rendered on OpenStreetMap-derived data; CARTO's dark basemap now requires an API key, Esri's canvas is key-free and policy-compliant with attribution |
+| OpenStreetMap tiles | ODbL (data) | https://tile.openstreetmap.org | Basemap tiles for the Leaflet maps, with attribution shown on the map |
 | OpenStreetMap Nominatim | ODbL (data) | https://nominatim.org | Geocoding service for the location form, used through the Laravel HTTP Client with a proper user agent |
+| Open-Meteo | CC BY 4.0 (data) | https://open-meteo.com | Informational weather for origin/destination on the shipment detail page, through the Laravel HTTP Client (5 s timeout, fallback labelled "cached") |
 
 ## Frontend
 
 | What | License | Source | Used for |
 | --- | --- | --- | --- |
-| Tailwind CSS | MIT | https://tailwindcss.com | Utility styling; design tokens from DESIGN.md map into its theme |
-| Vite | MIT | https://vite.dev | Asset bundling, Hot Module Replacement during development |
-| laravel-vite-plugin | MIT | https://github.com/laravel/vite-plugin | Vite/Laravel integration, Blade directive, font handling |
-| IBM Plex Sans / IBM Plex Mono | SIL OFL 1.1 | https://github.com/IBM/plex | Interface and data typography (loaded through Bunny Fonts at build time) |
-| Lucide | ISC | https://lucide.dev | Icon artwork rendered through the Blade package above |
+| Tailwind CSS | MIT | https://tailwindcss.com | Utility styling, loaded from CDN (`cdn.tailwindcss.com`); no build step |
+| Plus Jakarta Sans / JetBrains Mono | SIL OFL 1.1 | https://fonts.google.com | Interface and data typography, loaded from Google Fonts |
 
 ## Data & infrastructure
 
 | What | License | Source | Used for |
 | --- | --- | --- | --- |
-| MySQL 8.4 | GPL v2 / FOSS exception | https://www.mysql.com | Primary database (runs in the `mysql` Docker image locally) |
+| MySQL 8.0 | GPL v2 / FOSS exception | https://www.mysql.com | Primary database (runs in the `mysql:8.0` Docker image) |
 | PHPUnit | BSD-3-Clause | https://phpunit.de | Test framework shipped with Laravel |
-| Docker Compose | Apache-2.0 | https://docs.docker.com/compose | Local MySQL service definition |
-
+| Docker | Apache-2.0 | https://docs.docker.com | Local MySQL container (`docker run`, no Compose file) |
