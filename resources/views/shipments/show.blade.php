@@ -232,7 +232,7 @@
         </section>
 
         <!-- Right Map Column -->
-        <section class="relative flex flex-col bg-[#E8ECEF]">
+        <section class="relative flex flex-col bg-[#aad3df] lg:h-[560px]">
             <div id="shipment-detail-map" class="h-[360px] w-full sm:h-[420px] lg:h-full lg:flex-1"></div>
         </section>
     </div>
@@ -262,7 +262,12 @@
         });
         latlngs.push([d.latitude, d.longitude]);
         const route = L.polyline(latlngs, { color: '#080B0C', weight: 2.5, dashArray: '7 5' }).addTo(map);
+        // The map column is lg:h-full, so its height depends on the sibling
+        // content column. Re-measure after layout settles, otherwise part
+        // of the container stays grey with no tiles.
+        map.invalidateSize();
         map.fitBounds(route.getBounds(), { padding: [30, 30] });
+        window.addEventListener('load', function () { map.invalidateSize(); });
     });
 </script>
 @endpush

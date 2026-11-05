@@ -132,7 +132,7 @@ No Node build step: Tailwind, Leaflet and Chart.js load from CDN.
 | Customer | dewi@cargotrace.io |
 
 The seeder builds a Southeast Asia → Europe & Indonesian regional
-corridor: 5 carriers (SEA/AIR/ROAD), 12 port locations with WGS84
+corridor: 4 carriers (SEA/AIR/ROAD), 12 port locations with WGS84
 coordinates, 14 shipments across every status (on-time and delayed),
 34 tracking events, 6 exceptions covering all six brief types, and 4
 notifications. Newly registered accounts start as Customer with 0

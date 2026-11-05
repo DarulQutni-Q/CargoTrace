@@ -100,8 +100,8 @@
         </section>
 
         <!-- Right Column: Interactive Leaflet Map (OpenStreetMap) -->
-        <section class="relative min-h-[380px] overflow-hidden rounded-lg border border-[var(--line)] bg-[#E8ECEF] lg:min-h-full">
-            <div id="corridor-map" class="h-[380px] w-full lg:h-full"></div>
+        <section class="relative h-[380px] overflow-hidden rounded-lg border border-[var(--line)] bg-[#aad3df] lg:h-[640px]">
+            <div id="corridor-map" class="h-full w-full"></div>
         </section>
     </div>
 </div>
@@ -134,7 +134,12 @@
             L.polyline(latlngs, { color: '#080B0C', weight: 2, dashArray: '6 4' }).addTo(map);
             bounds.push([o.latitude, o.longitude], [d.latitude, d.longitude]);
         });
+        // The map column is lg:h-full, so its height depends on the sibling
+        // list column. Re-measure after layout settles, otherwise the top
+        // (or bottom) of the container stays grey with no tiles.
+        map.invalidateSize();
         if (bounds.length) map.fitBounds(bounds, { padding: [30, 30] });
+        window.addEventListener('load', function () { map.invalidateSize(); });
     });
 </script>
 @endpush
