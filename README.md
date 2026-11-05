@@ -13,21 +13,31 @@ access.
 
 ## Features
 
-- **Shipment lifecycle** — `CREATED → BOOKED → PICKED_UP → IN_TRANSIT →
+- **Shipment lifecycle & 1-click progression** — `CREATED → BOOKED → PICKED_UP → IN_TRANSIT →
   DELIVERED`, transitions validated server-side against a single allowed
-  map; `DELIVERED` is terminal.
-- **Tracking timeline** — append-only events (never overwritten),
-  chronological validation, current position from the latest valid event.
+  map (`DELIVERED` is terminal), with a 1-click `Advance → Next Status` action for operators.
+- **Multi-leg corridor & Planned Transit Stops** — append-only tracking timeline (never overwritten),
+  chronological validation, optional **Intermediate Transit Stop / Via Hub** at booking/edit time
+  (`Origin ━━▶ Transit Stop ╌╌▶ Destination`), and great-circle Haversine distance + ETA calculator.
+- **38 Indonesian Provinces & Regional Hub Catalog** — searchable registry of 110+ Indonesian
+  Kabupaten/Kota/Ports (Aceh: Bireuen, Krueng Geukuh, Lhokseumawe, Sabang, Malahayati, etc.) and
+  international maritime/air hubs with province filtering and 1-click activation.
 - **ETA & delay rule** — deterministic classification (LOW / MEDIUM /
   HIGH) from configurable thresholds shown with the reason and values used.
 - **Exceptions** — the six brief-mandated types with an OPEN →
   INVESTIGATING → RESOLVED lifecycle and server-stamped resolution.
-- **World map** — Leaflet with dark Esri/OSM tiles, great-circle routes,
-  live position markers, popups; geocoding through OpenStreetMap Nominatim
-  with explicit timeout/error/empty handling.
-- **Dashboard** — real database numbers (no static values), role-scoped.
+- **World map & Dual External APIs** — Leaflet with adaptive White/Dark Esri/OSM tiles, great-circle routes,
+  live position markers, popups; geocoding through **OpenStreetMap Nominatim** and live marine/corridor
+  weather via **Open-Meteo** with explicit timeout/error/fallback handling.
+- **Official Printable Bill of Lading (e-B/L)** — 1-click printable Waybill & itemized Cargo Manifest
+  with auto-synced manifest weight/volume totals.
+- **Dashboard & Customer Portal** — real database numbers (0-shipment clean state for new registrations),
+  role-scoped analytics, Customer self-service shipment booking request (`CREATED`), and Waybill Resi
+  linking (`Link & Track Resi`).
+- **Dual Theme Design System** — **White Mode** (`#FFFFFF`) default with instant **Dark Mode** (`#080B0C`)
+  toggle and `#C6F432` industrial chartreuse accents engineered for WCAG AAA readability.
 - **Search & filter** — reference, status, carrier, origin, destination,
-  delay, date range; server-side sorting and pagination.
+  delay, date range; searchable Port Locations (by province/country), Carriers, and Audit Log.
 - **Notifications** — in-app bell and page for status changes and
   exception lifecycles on shipments the user may see.
 - **Audit log** — actor, action, entity, and changed values for every
@@ -35,22 +45,23 @@ access.
 - **REST API** — Sanctum tokens, JSON envelope, 200/201/401/403/404/422
   semantics, Postman collection included.
 
-### Roles
+### Roles & Login Credentials
 
-| Role | Can |
-| --- | --- |
-| Administrator | users & config, carriers & locations, all shipments, audit log |
-| Logistics Operator | create/update shipments, record tracking events, manage exceptions |
-| Customer | view own shipments, timeline, map, ETA, and relevant notifications |
+Use the following seeded accounts on `/login` (no quick-demo bypass buttons are exposed in the UI):
 
-Authorization is enforced server-side on every route and endpoint; the
-interface only mirrors what the server allows.
+| Role | Name | Email | Password | Permissions |
+| --- | --- | --- | --- | --- |
+| **Administrator** | Aria Wibowo | `admin@cargotrace.test` | `password` | Full access: users & delay rules, carriers, port locations, all shipments, audit log |
+| **Logistics Operator** | Bimo Santoso | `operator@cargotrace.test` | `password` | Create/update shipments, 1-click advance status, append tracking checkpoints, raise & resolve exceptions |
+| **Customer** | Citra Hapsari | `customer@cargotrace.test` | `password` | View own shipments, request new shipment bookings, link & track resi, print Bill of Lading, view trajectory map & notifications |
+
+Authorization is enforced server-side on every route and `/api/*` endpoint; the interface mirrors what the server allows.
 
 ## Tech stack
 
-PHP 8.3+ · Laravel 12 · Blade · Tailwind CSS v4 · vanilla JavaScript +
+PHP 8.3+ · Laravel 12 · Blade · Tailwind CSS v4 · TypeScript / React +
 Fetch · MySQL 8 · Eloquent + migrations/seeders · Laravel Sanctum ·
-Laravel HTTP Client · Leaflet + Esri/OSM tiles · Chart.js · PHPUnit.
+Laravel HTTP Client · Leaflet + Esri/OSM tiles · Chart.js · Node Test / PHPUnit.
 
 ## Architecture
 
@@ -64,7 +75,7 @@ flowchart LR
     Controllers --> Services["Service Layer"]
     Services --> Models["Models / Eloquent"]
     Models --> DB[(MySQL)]
-    Services --> Ext["External APIs (geocoding)"]
+    Services --> Ext["External APIs (Nominatim + Open-Meteo)"]
 ```
 
 Business services: `ShipmentService`, `TrackingService`, `EtaService`,
@@ -115,14 +126,17 @@ php artisan serve               # http://localhost:8000
 | Logistics Operator | operator@cargotrace.test |
 | Customer | customer@cargotrace.test |
 
-The seeder builds a Southeast Asia → Europe corridor: fictional carriers,
-real port locations with coordinates, 14 shipments across every status
+The seeder builds a Southeast Asia → Europe & Indonesian Regional corridor:
+carriers across SEA/AIR/ROAD modes, real port locations with WGS84 coordinates
+(including Aceh & 38 Indonesian provinces), 14 shipments across every status
 including on-time and delayed estimates, believable tracking events, and
-open, investigating, and resolved exceptions.
+open, investigating, and resolved exceptions. Newly registered Customer accounts
+start with 0 shipments and can request new bookings or link existing waybill numbers.
 
 ## Tests
 
 ```bash
+npm test                # Domain business rules test suite (lifecycle, chronology, ETA delay rule, exceptions)
 php artisan test        # 69 tests: auth, CRUD, authorization, transitions,
                         # chronology, ETA rule, exceptions, API, map data
 ```
@@ -161,19 +175,15 @@ lecturer's group values replace them without touching a line of PHP.
 
 ## Deployment
 
-The app targets a standard PHP host: set the environment variables from
+The app targets a standard PHP/Node host: set the environment variables from
 `.env.example`, point `DB_*` at MySQL 8, run `php artisan migrate --seed`,
-build assets with `npm run build`, and serve `public/`. Secrets stay in
+build assets with `npm run build`, and serve the application. Secrets stay in
 the environment; nothing in the repository needs changing per host.
 
 ## Known limitations & future work
 
-- Notifications are in-app only; email delivery is the documented next step.
-- One external integration (geocoding); a weather provider is the natural
-  second integration and is explicitly **not** used as delay evidence.
-- `estimated_arrival_at` is operator/carrier-fed; automating it from
-  tracking telemetry is future work.
-- Single dark theme; a light theme is out of scope for this milestone.
+- Notifications are in-app only; external email/webhook delivery is future work.
+- Live weather telemetry (Open-Meteo) is strictly informational and is explicitly **not** used as delay evidence (delays are determined solely by `estimated_arrival_at` vs `expected_arrival_at`).
 
 ## Attribution
 

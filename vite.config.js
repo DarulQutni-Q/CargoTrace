@@ -1,27 +1,16 @@
 import { defineConfig } from 'vite';
-import laravel from 'laravel-vite-plugin';
-import { bunny } from 'laravel-vite-plugin/fonts';
+import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
     plugins: [
-        laravel({
-            input: ['resources/css/app.css', 'resources/js/app.js', 'resources/js/shipment-form.js', 'resources/js/location-form.js', 'resources/js/map.js', 'resources/js/dashboard.js'],
-            refresh: true,
-            fonts: [
-                bunny('IBM Plex Sans', {
-                    weights: [400, 500, 600],
-                }),
-                bunny('IBM Plex Mono', {
-                    weights: [400, 500],
-                }),
-            ],
-        }),
+        react(),
         tailwindcss(),
     ],
     server: {
-        watch: {
-            ignored: ['**/storage/framework/views/**'],
-        },
+        host: '0.0.0.0',
+        port: 3000,
+        allowedHosts: true,
+        hmr: false,
     },
 });
