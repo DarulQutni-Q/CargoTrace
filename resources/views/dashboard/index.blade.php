@@ -57,6 +57,20 @@
         </div>
     </div>
 
+    <!-- Charts: by status & by carrier -->
+    <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <div class="rounded-lg border border-[var(--line)] bg-[var(--bg-surface)] p-4 sm:p-5">
+            <h3 class="text-sm font-semibold">Shipments by lifecycle status</h3>
+            <p class="mt-0.5 text-xs opacity-70">Live counts from the database</p>
+            <div class="mt-4 h-[240px]"><canvas id="chart-status"></canvas></div>
+        </div>
+        <div class="rounded-lg border border-[var(--line)] bg-[var(--bg-surface)] p-4 sm:p-5">
+            <h3 class="text-sm font-semibold">Shipments &amp; delays by carrier</h3>
+            <p class="mt-0.5 text-xs opacity-70">On-time vs delayed, per carrier</p>
+            <div class="mt-4 h-[240px]"><canvas id="chart-carrier"></canvas></div>
+        </div>
+    </div>
+
     <!-- Priority Attention Table -->
     <div class="overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--bg-surface)]">
         <div class="flex items-center justify-between border-b border-[var(--line)] px-5 py-3.5">
@@ -102,4 +116,46 @@
         </div>
     </div>
 </div>
+
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        if (typeof Chart === 'undefined') return;
+        const statusCtx = document.getElementById('chart-status');
+        if (statusCtx) {
+            new Chart(statusCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: @json(array_keys($byStatus)),
+                    datasets: [{
+                        data: @json(array_values($byStatus)),
+                        backgroundColor: ['#9AA5AB', '#080B0C', '#526068', '#C6F432', '#2A7F3D'],
+                        borderWidth: 1,
+                        borderColor: '#FFFFFF',
+                    }],
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } },
+            });
+        }
+        const carrierCtx = document.getElementById('chart-carrier');
+        if (carrierCtx) {
+            new Chart(carrierCtx, {
+                type: 'bar',
+                data: {
+                    labels: @json($byCarrier->pluck('name')),
+                    datasets: [
+                        { label: 'On time', data: @json($byCarrier->pluck('on_time')), backgroundColor: '#080B0C' },
+                        { label: 'Delayed', data: @json($byCarrier->pluck('delayed')), backgroundColor: '#C6F432' },
+                    ],
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1 } } },
+                    plugins: { legend: { position: 'bottom' } },
+                },
+            });
+        }
+    });
+</script>
+@endpush
 @endsection

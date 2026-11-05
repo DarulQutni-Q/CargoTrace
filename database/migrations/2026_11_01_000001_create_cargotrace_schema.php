@@ -108,12 +108,12 @@ return new class extends Migration
             $table->id();
             $table->foreignId('shipment_id')->constrained('shipments')->cascadeOnDelete();
             $table->enum('type', [
-                'WEATHER_DELAY',
                 'CUSTOMS_HOLD',
-                'CARRIER_DELAY',
-                'DAMAGED_CARGO',
-                'ROUTE_DEVIATION',
+                'WEATHER_DELAY',
                 'PORT_CONGESTION',
+                'DAMAGED',
+                'MISROUTED',
+                'DOCUMENTATION_ISSUE',
             ])->index();
             $table->enum('severity', ['LOW', 'MEDIUM', 'HIGH'])->default('MEDIUM');
             $table->enum('status', ['OPEN', 'INVESTIGATING', 'RESOLVED'])->default('OPEN')->index();

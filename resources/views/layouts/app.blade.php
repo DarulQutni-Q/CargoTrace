@@ -17,11 +17,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 
-    @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
-        @viteReactRefresh
-        @vite(['src/main.tsx'])
-    @endif
-
     <style>
         /* Strict 3-Color Palette: #080B0C (Obsidian) · #FFFFFF (Pure White - Default) · #C6F432 (Acid Volt) */
         :root {
@@ -78,17 +73,38 @@
                         <p class="px-2.5 pb-1 text-[11px] font-medium opacity-70">Operations</p>
                         <a href="{{ route('dashboard') }}" class="flex items-center gap-2.5 rounded-md px-2.5 py-2 font-medium {{ request()->routeIs('dashboard') ? 'bg-[#080B0C] text-white' : 'hover:bg-[var(--bg-raised)]' }}">Dashboard</a>
                         <a href="{{ route('shipments.index') }}" class="flex items-center gap-2.5 rounded-md px-2.5 py-2 font-medium {{ request()->routeIs('shipments.*') ? 'bg-[#080B0C] text-white' : 'hover:bg-[var(--bg-raised)]' }}">Shipments</a>
+                        <a href="{{ route('notifications.index') }}" class="flex items-center gap-2.5 rounded-md px-2.5 py-2 font-medium {{ request()->routeIs('notifications.*') ? 'bg-[#080B0C] text-white' : 'hover:bg-[var(--bg-raised)]' }}">Notifications
+                            @php $unreadCount = auth()->check() ? auth()->user()->notifications()->whereNull('read_at')->count() : 0; @endphp
+                            @if ($unreadCount > 0)
+                                <span class="ml-auto rounded bg-[#C6F432] px-1.5 py-0.5 font-mono text-[10px] font-bold text-[#080B0C]">{{ $unreadCount }}</span>
+                            @endif
+                        </a>
                     </div>
 
                     <div class="space-y-1">
                         <p class="px-2.5 pb-1 text-[11px] font-medium opacity-70">Administration</p>
                         <a href="{{ route('carriers.index') }}" class="flex items-center gap-2.5 rounded-md px-2.5 py-2 font-medium {{ request()->routeIs('carriers.*') ? 'bg-[#080B0C] text-white' : 'hover:bg-[var(--bg-raised)]' }}">Carriers</a>
                         <a href="{{ route('locations.index') }}" class="flex items-center gap-2.5 rounded-md px-2.5 py-2 font-medium {{ request()->routeIs('locations.*') ? 'bg-[#080B0C] text-white' : 'hover:bg-[var(--bg-raised)]' }}">Port locations</a>
-                        <a href="{{ route('audit.index') }}" class="flex items-center gap-2.5 rounded-md px-2.5 py-2 font-medium {{ request()->routeIs('audit.*') ? 'bg-[#080B0C] text-white' : 'hover:bg-[var(--bg-raised)]' }}">Audit log</a>
+                        @if (auth()->check() && auth()->user()->isAdmin())
+                            <a href="{{ route('scenario.index') }}" class="flex items-center gap-2.5 rounded-md px-2.5 py-2 font-medium {{ request()->routeIs('scenario.*') || request()->routeIs('users.*') ? 'bg-[#080B0C] text-white' : 'hover:bg-[var(--bg-raised)]' }}">Users &amp; delay rules</a>
+                            <a href="{{ route('audit.index') }}" class="flex items-center gap-2.5 rounded-md px-2.5 py-2 font-medium {{ request()->routeIs('audit.*') ? 'bg-[#080B0C] text-white' : 'hover:bg-[var(--bg-raised)]' }}">Audit log</a>
+                        @endif
                     </div>
                 </nav>
 
                 <div class="border-t border-[var(--line)] p-3 text-xs">
+                    @if (auth()->check())
+                        <div class="mb-2.5 flex items-center justify-between gap-2 px-1.5">
+                            <div class="min-w-0">
+                                <div class="truncate font-semibold">{{ auth()->user()->name }}</div>
+                                <div class="font-mono text-[10px] opacity-70">{{ auth()->user()->role }}</div>
+                            </div>
+                            <form method="POST" action="{{ route('logout') }}">
+                                @csrf
+                                <button type="submit" class="rounded-md border border-[var(--line)] bg-[var(--bg-base)] px-2 py-1 text-[11px] font-medium">Log out</button>
+                            </form>
+                        </div>
+                    @endif
                     <div class="mb-2.5 px-1.5 py-1">
                         <div class="flex items-center justify-between">
                             <span class="opacity-70">Delay threshold</span>
