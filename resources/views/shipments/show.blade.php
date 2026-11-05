@@ -232,7 +232,7 @@
         </section>
 
         <!-- Right Map Column -->
-        <section class="relative flex flex-col bg-[#aad3df] lg:h-[560px]">
+        <section class="relative flex flex-col bg-[#aad3df]">
             <div id="shipment-detail-map" class="h-[360px] w-full sm:h-[420px] lg:h-full lg:flex-1"></div>
         </section>
     </div>

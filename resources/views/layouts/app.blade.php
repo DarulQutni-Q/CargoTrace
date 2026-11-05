@@ -47,6 +47,12 @@
         .font-mono {
             font-family: 'JetBrains Mono', monospace;
         }
+        /* Leaflet's default container background is #ddd; at zoom 2 the area
+           beyond the world edge would show as a grey band. OSM ocean colour
+           makes it blend with the sea instead. */
+        .leaflet-container {
+            background: #aad3df;
+        }
     </style>
 </head>
 <body class="min-h-screen antialiased selection:bg-[#C6F432] selection:text-[#080B0C]">

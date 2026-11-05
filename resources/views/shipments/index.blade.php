@@ -100,8 +100,8 @@
         </section>
 
         <!-- Right Column: Interactive Leaflet Map (OpenStreetMap) -->
-        <section class="relative h-[380px] overflow-hidden rounded-lg border border-[var(--line)] bg-[#aad3df] lg:h-[640px]">
-            <div id="corridor-map" class="h-full w-full"></div>
+        <section class="relative min-h-[380px] overflow-hidden rounded-lg border border-[var(--line)] bg-[#aad3df] lg:min-h-full">
+            <div id="corridor-map" class="h-[380px] w-full lg:h-full"></div>
         </section>
     </div>
 </div>
