@@ -129,6 +129,49 @@ class ShipmentLifecycleService
     }
 
     /**
+     * Raise an operational exception on a shipment: create the exception,
+     * append an EXCEPTION event on the timeline, optionally shift the
+     * estimated arrival, and notify the customer. Shared by the API and
+     * the web dossier form so both paths behave identically.
+     */
+    public function raiseException(Shipment $shipment, array $data, ?User $actor = null): ShipmentException
+    {
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($shipment, $data, $actor) {
+            $exc = ShipmentException::create([
+                'shipment_id' => $shipment->id,
+                'type' => $data['type'],
+                'severity' => $data['severity'],
+                'status' => ShipmentException::STATUS_OPEN,
+                'detected_at' => Carbon::parse($data['detected_at']),
+                'description' => $data['description'] ?? null,
+            ]);
+
+            if (! empty($data['estimated_arrival_at'])) {
+                $shipment->update(['estimated_arrival_at' => Carbon::parse($data['estimated_arrival_at'])]);
+            }
+
+            TrackingEvent::create([
+                'shipment_id' => $shipment->id,
+                'event_type' => 'EXCEPTION',
+                'occurred_at' => Carbon::parse($data['detected_at']),
+                'location_name' => $data['location_name'] ?? $shipment->origin->name,
+                'description' => sprintf('%s raised (%s): %s', $exc->type, $exc->severity, $exc->description ?? ''),
+                'created_by' => $actor?->id,
+            ]);
+
+            Notification::create([
+                'user_id' => $shipment->customer_id,
+                'shipment_id' => $shipment->id,
+                'type' => 'EXCEPTION_RAISED',
+                'title' => sprintf('Exception on %s (%s)', $shipment->shipment_number, $exc->type),
+                'body' => $exc->description ?? 'Operational exception raised on your corridor shipment.',
+            ]);
+
+            return $exc;
+        });
+    }
+
+    /**
      * Build ordered multi-leg corridor waypoints: Origin -> Intermediate Transit Stops -> Destination.
      * Prevents backtracking to Origin when lifecycle events at Origin are recorded after departure.
      */

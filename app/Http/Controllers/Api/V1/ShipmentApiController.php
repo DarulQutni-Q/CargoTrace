@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreExceptionRequest;
 use App\Http\Requests\StoreShipmentRequest;
 use App\Http\Requests\StoreTrackingEventRequest;
+use App\Http\Requests\UpdateShipmentRequest;
 use App\Models\AuditLog;
 use App\Models\Carrier;
 use App\Models\Location;
@@ -21,6 +22,7 @@ use App\Services\ShipmentLifecycleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use InvalidArgumentException;
 
 class ShipmentApiController extends Controller
@@ -38,11 +40,8 @@ class ShipmentApiController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = Shipment::with(['customer', 'carrier', 'origin', 'destination', 'exceptions'])
-            ->active();
-
-        if ($request->user()) {
-            $query->visibleTo($request->user());
-        }
+            ->active()
+            ->visibleTo($request->user());
 
         if ($status = $request->query('status')) {
             $query->where('current_status', strtoupper($status));
@@ -69,7 +68,33 @@ class ShipmentApiController extends Controller
             });
         }
 
-        $shipments = $query->orderByDesc('created_at')->paginate((int) $request->query('per_page', 15));
+        if ($request->query('date_from')) {
+            $query->whereDate('expected_departure_at', '>=', $request->query('date_from'));
+        }
+
+        if ($request->query('date_to')) {
+            $query->whereDate('expected_departure_at', '<=', $request->query('date_to'));
+        }
+
+        if ($request->query('delayed') !== null && $request->query('delayed') !== '') {
+            if (filter_var($request->query('delayed'), FILTER_VALIDATE_BOOLEAN)) {
+                $query->whereColumn('estimated_arrival_at', '>', 'expected_arrival_at');
+            } else {
+                $query->where(function ($sub) {
+                    $sub->whereNull('estimated_arrival_at')
+                        ->orWhereColumn('estimated_arrival_at', '<=', 'expected_arrival_at');
+                });
+            }
+        }
+
+        $sort = $request->query('sort', 'latest');
+        $query->when($sort === 'oldest', fn ($q) => $q->orderBy('created_at'))
+            ->when($sort === 'eta_asc', fn ($q) => $q->orderBy('expected_arrival_at'))
+            ->when($sort === 'eta_desc', fn ($q) => $q->orderByDesc('expected_arrival_at'))
+            ->when($sort === 'ref_asc', fn ($q) => $q->orderBy('shipment_number'))
+            ->when(! in_array($sort, ['oldest', 'eta_asc', 'eta_desc', 'ref_asc'], true), fn ($q) => $q->orderByDesc('created_at'));
+
+        $shipments = $query->paginate((int) $request->query('per_page', 15));
 
         $scenario = DB::table('scenario_configs')->first();
         $lowH = (int) ($scenario->low_threshold_hours ?? 6);
@@ -101,6 +126,7 @@ class ShipmentApiController extends Controller
     {
         $shipments = Shipment::with(['origin', 'destination', 'carrier', 'trackingEvents'])
             ->active()
+            ->visibleTo($request->user())
             ->get();
 
         $scenario = DB::table('scenario_configs')->first();
@@ -142,8 +168,10 @@ class ShipmentApiController extends Controller
      * GET /api/v1/shipments/{shipment}
      * Inspect full shipment dossier, chronological timeline, exceptions, manifest, and live weather.
      */
-    public function show(Shipment $shipment): JsonResponse
+    public function show(Request $request, Shipment $shipment): JsonResponse
     {
+        Gate::authorize('view', $shipment);
+
         $shipment->load(['customer', 'carrier', 'origin', 'destination', 'items', 'trackingEvents.creator', 'exceptions']);
 
         $scenario = DB::table('scenario_configs')->first();
@@ -177,7 +205,15 @@ class ShipmentApiController extends Controller
      */
     public function store(StoreShipmentRequest $request): JsonResponse
     {
+        Gate::authorize('create', Shipment::class);
+
         $validated = $request->validated();
+
+        // Customers can only book under their own account.
+        if ($request->user()->isCustomer()) {
+            $validated['customer_id'] = $request->user()->id;
+        }
+
         $carrier = Carrier::findOrFail($validated['carrier_id']);
         $origin = Location::findOrFail($validated['origin_location_id']);
 
@@ -259,11 +295,102 @@ class ShipmentApiController extends Controller
     }
 
     /**
+     * PATCH /api/v1/shipments/{shipment}
+     * Update planning fields. Status changes are NOT allowed here; they must
+     * go through tracking events so the lifecycle state machine is enforced.
+     */
+    public function update(UpdateShipmentRequest $request, Shipment $shipment): JsonResponse
+    {
+        Gate::authorize('operate', $shipment);
+
+        $validated = $request->validated();
+
+        if (! empty($validated['expected_arrival_at']) && ! empty($validated['estimated_arrival_at'])) {
+            // no-op guard: keep the delay assessment consistent
+        }
+
+        $shipment->update($validated);
+
+        AuditLog::create([
+            'actor_id' => $request->user()?->id,
+            'action' => 'SHIPMENT_UPDATED',
+            'entity_type' => 'Shipment',
+            'entity_id' => $shipment->id,
+            'changes' => ['fields' => ['from' => null, 'to' => array_keys($validated)]],
+        ]);
+
+        return response()->json([
+            'status' => 'ok',
+            'data' => $shipment->fresh()->load(['customer', 'carrier', 'origin', 'destination', 'items']),
+        ]);
+    }
+
+    /**
+     * DELETE /api/v1/shipments/{shipment}
+     * Archive the shipment (sets archived_at). Archived shipments leave the
+     * active list and map; their history, items, and audit trail are kept.
+     */
+    public function destroy(Request $request, Shipment $shipment): JsonResponse
+    {
+        Gate::authorize('delete', $shipment);
+
+        $shipment->update(['archived_at' => now()]);
+
+        AuditLog::create([
+            'actor_id' => $request->user()?->id,
+            'action' => 'SHIPMENT_ARCHIVED',
+            'entity_type' => 'Shipment',
+            'entity_id' => $shipment->id,
+            'changes' => [
+                'archived_at' => ['from' => null, 'to' => $shipment->archived_at->toIso8601String()],
+            ],
+        ]);
+
+        return response()->json([
+            'status' => 'ok',
+            'data' => $shipment->fresh(),
+        ]);
+    }
+
+    /**
+     * GET /api/v1/shipments/{shipment}/tracking
+     * Chronological tracking timeline (newest first), server-side paginated.
+     */
+    public function tracking(Request $request, Shipment $shipment): JsonResponse
+    {
+        Gate::authorize('view', $shipment);
+
+        $events = $shipment->trackingEvents()
+            ->with('creator')
+            ->orderByDesc('occurred_at')
+            ->paginate((int) $request->query('per_page', 15));
+
+        return response()->json(['status' => 'ok', 'data' => $events]);
+    }
+
+    /**
+     * GET /api/v1/shipments/{shipment}/exceptions
+     */
+    public function exceptions(Request $request, Shipment $shipment): JsonResponse
+    {
+        Gate::authorize('view', $shipment);
+
+        $exceptions = $shipment->exceptions()
+            ->when($request->query('status'), fn ($query, $status) => $query->where('status', strtoupper($status)))
+            ->orderByDesc('detected_at')
+            ->paginate((int) $request->query('per_page', 15));
+
+        return response()->json(['status' => 'ok', 'data' => $exceptions]);
+    }
+
+    /**
      * POST /api/v1/shipments/{shipment}/tracking-events
      * Append a chronological tracking checkpoint or transition shipment lifecycle status.
      */
     public function storeTrackingEvent(StoreTrackingEventRequest $request, Shipment $shipment): JsonResponse
     {
+        Gate::authorize('operate', $shipment);
+
         try {
             $event = $this->lifecycleService->appendTrackingEvent(
                 $shipment,
@@ -290,41 +417,13 @@ class ShipmentApiController extends Controller
      */
     public function storeException(StoreExceptionRequest $request, Shipment $shipment): JsonResponse
     {
-        $validated = $request->validated();
+        Gate::authorize('operate', $shipment);
 
-        $exception = DB::transaction(function () use ($shipment, $validated, $request) {
-            $exc = ShipmentException::create([
-                'shipment_id' => $shipment->id,
-                'type' => $validated['type'],
-                'severity' => $validated['severity'],
-                'status' => ShipmentException::STATUS_OPEN,
-                'detected_at' => $validated['detected_at'],
-                'description' => $validated['description'] ?? null,
-            ]);
-
-            if (! empty($validated['estimated_arrival_at'])) {
-                $shipment->update(['estimated_arrival_at' => $validated['estimated_arrival_at']]);
-            }
-
-            TrackingEvent::create([
-                'shipment_id' => $shipment->id,
-                'event_type' => 'EXCEPTION',
-                'occurred_at' => $validated['detected_at'],
-                'location_name' => $validated['location_name'] ?? $shipment->origin->name,
-                'description' => sprintf('%s raised (%s): %s', $exc->type, $exc->severity, $exc->description ?? ''),
-                'created_by' => $request->user()?->id,
-            ]);
-
-            Notification::create([
-                'user_id' => $shipment->customer_id,
-                'shipment_id' => $shipment->id,
-                'type' => 'EXCEPTION_RAISED',
-                'title' => sprintf('Exception on %s (%s)', $shipment->shipment_number, $exc->type),
-                'body' => $exc->description ?? 'Operational exception raised on your corridor shipment.',
-            ]);
-
-            return $exc;
-        });
+        $exception = $this->lifecycleService->raiseException(
+            $shipment,
+            $request->validated(),
+            $request->user()
+        );
 
         return response()->json([
             'status' => 'ok',

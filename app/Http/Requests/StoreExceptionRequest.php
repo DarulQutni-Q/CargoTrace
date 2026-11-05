@@ -14,7 +14,7 @@ class StoreExceptionRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'type' => ['required', 'string', 'in:WEATHER_DELAY,CUSTOMS_HOLD,CARRIER_DELAY,DAMAGED_CARGO,ROUTE_DEVIATION,PORT_CONGESTION'],
+            'type' => ['required', 'string', 'in:CUSTOMS_HOLD,WEATHER_DELAY,PORT_CONGESTION,DAMAGED,MISROUTED,DOCUMENTATION_ISSUE'],
             'severity' => ['required', 'string', 'in:LOW,MEDIUM,HIGH'],
             'detected_at' => ['required', 'date'],
             'location_name' => ['nullable', 'string', 'max:180'],

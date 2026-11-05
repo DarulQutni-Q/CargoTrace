@@ -16,6 +16,23 @@ class ShipmentException extends Model
     public const STATUS_INVESTIGATING = 'INVESTIGATING';
     public const STATUS_RESOLVED = 'RESOLVED';
 
+    /** Exception types mandated by the UAS brief (slide 8). */
+    public const TYPE_CUSTOMS_HOLD = 'CUSTOMS_HOLD';
+    public const TYPE_WEATHER_DELAY = 'WEATHER_DELAY';
+    public const TYPE_PORT_CONGESTION = 'PORT_CONGESTION';
+    public const TYPE_DAMAGED = 'DAMAGED';
+    public const TYPE_MISROUTED = 'MISROUTED';
+    public const TYPE_DOCUMENTATION_ISSUE = 'DOCUMENTATION_ISSUE';
+
+    public const TYPES = [
+        self::TYPE_CUSTOMS_HOLD,
+        self::TYPE_WEATHER_DELAY,
+        self::TYPE_PORT_CONGESTION,
+        self::TYPE_DAMAGED,
+        self::TYPE_MISROUTED,
+        self::TYPE_DOCUMENTATION_ISSUE,
+    ];
+
     protected $fillable = [
         'shipment_id',
         'type',
