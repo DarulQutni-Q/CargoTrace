@@ -242,7 +242,7 @@ export const WorldMap: React.FC<{
               .addTo(group)
               .bindPopup(pointPopup(shipment, `Transit Stop #${idx + 1}`, cp))
               .bindTooltip(
-                `Transit #${idx + 1}: ${cp.location_name}${cp.time ? ` · ${cp.time}` : ''}`,
+                `Transit #${idx + 1}: ${cp.location_name.split('·')[0].trim()}`,
                 {
                   permanent: isFocused,
                   direction: 'top',
@@ -301,8 +301,8 @@ export const WorldMap: React.FC<{
                 : shipment.destination.location_name,
               {
                 permanent: isFocused,
-                direction: 'right',
-                offset: [8, 0],
+                direction: 'bottom',
+                offset: [0, 8],
                 className: 'ct-tooltip',
               },
             );
@@ -363,7 +363,7 @@ export const WorldMap: React.FC<{
               </div>
               ${
                 isFocused
-                  ? `<span class="ct-port-label absolute left-6 -top-1 whitespace-nowrap">${shipment.shipment_number}</span>`
+                  ? `<span class="ct-port-label absolute bottom-7 left-1/2 -translate-x-1/2 whitespace-nowrap">${shipment.shipment_number}</span>`
                   : ''
               }
             </div>

@@ -242,9 +242,9 @@ export const DashboardView: React.FC = () => {
       title="Dashboard"
       subtitle="Corridor metrics, carrier performance, and exception triage"
     >
-      <div className="mx-auto max-w-[1440px] space-y-6 p-6">
+      <div className="mx-auto max-w-[1440px] space-y-5 p-3 sm:space-y-6 sm:p-6">
         {/* Scenario Strip */}
-        <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-line bg-surface px-5 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-line bg-surface px-4 py-3.5 sm:px-5 sm:py-4">
           <div>
             <div className="flex items-center gap-2 text-xs text-ink-2">
               <span className="font-mono font-semibold text-ink">
@@ -304,7 +304,7 @@ export const DashboardView: React.FC = () => {
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
@@ -319,16 +319,16 @@ export const DashboardView: React.FC = () => {
                       setTrackRefInput('');
                     }
                   }}
-                  className="flex items-center gap-2"
+                  className="flex w-full flex-wrap items-center gap-2 sm:w-auto"
                 >
-                  <div className="relative">
+                  <div className="relative flex-1 sm:flex-initial">
                     <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-ink-3" />
                     <input
                       type="text"
                       value={trackRefInput}
                       onChange={(e) => setTrackRefInput(e.target.value)}
                       placeholder="Masukkan No. Resi (cth: CT0015MAC)"
-                      className="h-8 w-56 rounded-md border border-line bg-base pl-8 pr-2.5 font-mono text-xs text-ink placeholder:font-sans placeholder:text-ink-3"
+                      className="h-8 w-full rounded-md border border-line bg-base pl-8 pr-2.5 font-mono text-xs text-ink placeholder:font-sans placeholder:text-ink-3 sm:w-56"
                     />
                   </div>
                   <button

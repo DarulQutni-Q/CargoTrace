@@ -123,8 +123,8 @@ export const LocationsListView: React.FC = () => {
       title="Port locations"
       subtitle={`${state.locations.length} active ports & regional hubs (${PORT_HUB_PRESETS.length}+ searchable catalog presets)`}
     >
-      <div className="mx-auto max-w-[1440px] space-y-5 p-6">
-        <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-line bg-surface px-5 py-4">
+      <div className="mx-auto max-w-[1440px] space-y-5 p-3 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-line bg-surface px-4 py-4 sm:px-5">
           <div>
             <h2 className="text-base font-semibold text-ink">
               Port, Kabupaten/Kota &amp; Terminal Registry
@@ -133,8 +133,8 @@ export const LocationsListView: React.FC = () => {
               Search active locations or 38 Indonesian provinces (Aceh: Bireuen, Krueng Geukuh, Lhokseumawe, Sabang, Malahayati, etc.)
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="relative w-64 sm:w-80">
+          <div className="flex w-full flex-wrap items-center gap-2.5 sm:w-auto">
+            <div className="relative w-full sm:w-80">
               <Search
                 className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-ink-3"
                 strokeWidth={1.75}
@@ -153,7 +153,7 @@ export const LocationsListView: React.FC = () => {
               value={regionFilter}
               onChange={(e) => setRegionFilter(e.target.value)}
               aria-label="Filter by region or Indonesian province"
-              className="h-8 rounded-md border border-line bg-base px-2.5 text-xs font-medium text-ink focus:border-line-strong focus:outline-none"
+              className="h-8 w-full rounded-md border border-line bg-base px-2.5 text-xs font-medium text-ink focus:border-line-strong focus:outline-none sm:w-auto"
             >
               <option value="ALL">All Countries &amp; Provinces ({state.locations.length})</option>
               <option value="ID_ALL">Indonesia — All 38 Provinces</option>
@@ -254,7 +254,7 @@ export const LocationsListView: React.FC = () => {
         )}
 
         <div className="overflow-hidden rounded-lg border border-line bg-surface">
-          <div className="flex items-center justify-between border-b border-line bg-base px-5 py-2.5 text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-base px-4 py-2.5 text-xs sm:px-5">
             <span className="font-semibold text-ink">
               Active Port Locations ({filteredLocations.length} of {state.locations.length})
             </span>
@@ -264,7 +264,8 @@ export const LocationsListView: React.FC = () => {
               </span>
             )}
           </div>
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-line bg-base text-left text-xs font-semibold text-ink-3">
                 <th className="px-5 py-3 font-semibold">Location name</th>
@@ -317,6 +318,7 @@ export const LocationsListView: React.FC = () => {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
     </AppLayout>
@@ -604,10 +606,10 @@ export const LocationFormView: React.FC<{ editId?: number }> = ({ editId }) => {
 
   return (
     <AppLayout title={existing ? 'Edit port location' : 'Add port location'}>
-      <div className="mx-auto max-w-xl p-6">
+      <div className="mx-auto max-w-xl p-3 sm:p-6">
         <form
           onSubmit={handleSubmit}
-          className="space-y-4 rounded-lg border border-line bg-surface p-6"
+          className="space-y-4 rounded-lg border border-line bg-surface p-4 sm:p-6"
         >
           {/* Optional Indonesian Province Filter (38 Provinsi) */}
           {isIndonesiaSelected && (
@@ -768,7 +770,7 @@ export const LocationFormView: React.FC<{ editId?: number }> = ({ editId }) => {
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="loc-code" className="mb-1.5 block text-xs font-medium text-ink-2">
                 Code *

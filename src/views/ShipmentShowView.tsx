@@ -577,10 +577,10 @@ export const ShipmentShowView: React.FC<{ shipmentId: number }> = ({ shipmentId 
       title={shipment.shipment_number}
       subtitle={`${origin.code} (${origin.city}) → ${destination.code} (${destination.city})`}
     >
-      <div className="flex h-[calc(100vh-56px)] flex-col overflow-hidden bg-base">
+      <div className="flex min-h-[calc(100vh-56px)] flex-col bg-base lg:h-[calc(100vh-56px)] lg:overflow-hidden">
         {/* Top Control & Lifecycle Bar */}
-        <div className="shrink-0 border-b border-line bg-base px-5 py-2.5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="shrink-0 border-b border-line bg-base px-3 py-2.5 sm:px-5">
+          <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-3">
             {/* Left: Back link, Shipment ID, Status, Delay */}
             <div className="flex flex-wrap items-center gap-2.5">
               <button
@@ -744,12 +744,12 @@ export const ShipmentShowView: React.FC<{ shipmentId: number }> = ({ shipmentId 
         {/* Main Split Workspace — Left Dossier & Timeline Rail | Right Full-Height Map */}
         <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[460px_1fr]">
           {/* Left Column: Flush Hairline-Divided Dossier & Chronological Timeline */}
-          <section className="flex min-h-0 flex-col overflow-y-auto border-r border-line bg-base">
+          <section className="flex min-h-0 flex-col border-b border-line bg-base lg:overflow-y-auto lg:border-b-0 lg:border-r">
             {/* Collapsible Add Checkpoint Form */}
             {canOperate && showEventForm && (
               <form
                 onSubmit={handleAddEvent}
-                className="border-b border-line bg-surface px-5 py-4 space-y-3"
+                className="border-b border-line bg-surface px-3.5 py-4 sm:px-5 space-y-3"
               >
                 <div className="flex items-center justify-between">
                   <div>
@@ -790,7 +790,7 @@ export const ShipmentShowView: React.FC<{ shipmentId: number }> = ({ shipmentId 
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                   <div>
                     <label className="mb-1 block text-[11px] text-ink-3">
                       Event / status transition
@@ -945,7 +945,7 @@ export const ShipmentShowView: React.FC<{ shipmentId: number }> = ({ shipmentId 
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                   <div>
                     <label className="mb-1 block text-[11px] text-ink-3">
                       Updated Estimated Arrival (ETA)
@@ -991,7 +991,7 @@ export const ShipmentShowView: React.FC<{ shipmentId: number }> = ({ shipmentId 
             {canOperate && showExceptionForm && (
               <form
                 onSubmit={handleCreateException}
-                className="border-b border-line bg-surface px-5 py-4 space-y-3"
+                className="border-b border-line bg-surface px-3.5 py-4 sm:px-5 space-y-3"
               >
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-ink">
@@ -1006,7 +1006,7 @@ export const ShipmentShowView: React.FC<{ shipmentId: number }> = ({ shipmentId 
                   </button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                   <div>
                     <label className="mb-1 block text-[11px] text-ink-3">Exception type *</label>
                     <select
@@ -1037,7 +1037,7 @@ export const ShipmentShowView: React.FC<{ shipmentId: number }> = ({ shipmentId 
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                   <div>
                     <label className="mb-1 block text-[11px] text-ink-3">Detected at (UTC) *</label>
                     <input
@@ -1060,7 +1060,7 @@ export const ShipmentShowView: React.FC<{ shipmentId: number }> = ({ shipmentId 
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                   <input
                     type="text"
                     value={excLocation}
@@ -1415,30 +1415,30 @@ export const ShipmentShowView: React.FC<{ shipmentId: number }> = ({ shipmentId 
           </section>
 
           {/* Right Column: Full-Height Cartographic Map */}
-          <section className="isolate relative z-0 flex min-h-[420px] flex-col bg-map-bg">
-            <div className="relative flex-1">
+          <section className="isolate relative z-0 flex flex-col bg-map-bg lg:min-h-[420px]">
+            <div className="relative h-[360px] w-full sm:h-[420px] lg:h-auto lg:flex-1">
               <WorldMap shipments={[mapEntry]} focusId={shipment.id} />
+
+              {/* Quiet Map Legend */}
+              <div className="pointer-events-none absolute right-2.5 top-2.5 z-[400] flex max-w-[calc(100%-1.25rem)] flex-wrap items-center gap-2.5 rounded-md border border-line-strong bg-overlay px-2.5 py-1.5 text-[11px] font-medium text-ink shadow-md sm:right-4 sm:top-4 sm:gap-4 sm:px-3 sm:text-xs">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="inline-block h-[2.5px] w-3.5 bg-[#080B0C] dark:bg-[#C6F432] sm:w-4" />
+                  Completed leg
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="inline-block h-0 w-3.5 border-t-2 border-dashed border-ink-2 sm:w-4" />
+                  Remaining leg
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="inline-block size-2 rounded-full border border-[#080B0C] bg-[#C6F432]" />
+                  Transit stop ({transitStops.length})
+                </span>
+              </div>
             </div>
 
-            {/* Quiet Map Legend */}
-            <div className="pointer-events-none absolute right-4 top-4 z-[400] flex flex-wrap items-center gap-4 rounded-md border border-line-strong bg-overlay px-3 py-1.5 text-xs font-medium text-ink shadow-md">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="inline-block h-[2.5px] w-4 bg-[#080B0C] dark:bg-[#C6F432]" />
-                Completed leg
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="inline-block h-0 w-4 border-t-2 border-dashed border-ink-2" />
-                Remaining leg
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="inline-block size-2 rounded-full border border-[#080B0C] bg-[#C6F432]" />
-                Transit stop ({transitStops.length})
-              </span>
-            </div>
-
-            {/* Compact Current Position Telemetry Overlay */}
+            {/* Compact Current Position Telemetry Overlay (stacked cleanly below map on mobile, floating on desktop) */}
             {mapEntry.current_position && (
-              <div className="pointer-events-none absolute bottom-4 left-4 z-[400] max-w-md rounded-md border border-line-strong bg-overlay px-3.5 py-2.5 text-xs shadow-lg">
+              <div className="border-t border-line bg-overlay px-3.5 py-2.5 text-xs md:pointer-events-none md:absolute md:bottom-4 md:left-4 md:z-[400] md:max-w-md md:rounded-md md:border md:border-line-strong md:shadow-lg">
                 <div className="flex flex-wrap items-center gap-1.5 font-mono text-[10px] font-bold text-ink-2">
                   <span className="rounded border border-line bg-surface px-1.5 py-0.5 text-ink">
                     1. {origin.code}
@@ -1622,36 +1622,38 @@ export const ShipmentShowView: React.FC<{ shipmentId: number }> = ({ shipmentId 
                     m³
                   </span>
                 </div>
-                <table className="w-full border-collapse border border-[#D0D7DE] text-left text-xs">
-                  <thead>
-                    <tr className="border-b border-[#D0D7DE] bg-[#F3F5F6] font-mono text-[11px] text-[#2A3338]">
-                      <th className="px-3 py-2">#</th>
-                      <th className="px-3 py-2">Description of Goods</th>
-                      <th className="px-3 py-2 text-right">Qty</th>
-                      <th className="px-3 py-2 text-right">Gross Weight (kg)</th>
-                      <th className="px-3 py-2 text-right">Volume (m³)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#D0D7DE]">
-                    {items.map((item, idx) => (
-                      <tr key={item.id}>
-                        <td className="px-3 py-2 font-mono text-[#526068]">{idx + 1}</td>
-                        <td className="px-3 py-2 font-semibold text-[#080B0C]">
-                          {item.description}
-                        </td>
-                        <td className="px-3 py-2 text-right font-mono text-[#080B0C]">
-                          {item.quantity}
-                        </td>
-                        <td className="px-3 py-2 text-right font-mono text-[#080B0C]">
-                          {item.weight_kg.toLocaleString()}
-                        </td>
-                        <td className="px-3 py-2 text-right font-mono text-[#080B0C]">
-                          {item.volume_m3}
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse border border-[#D0D7DE] text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-[#D0D7DE] bg-[#F3F5F6] font-mono text-[11px] text-[#2A3338]">
+                        <th className="px-3 py-2">#</th>
+                        <th className="px-3 py-2">Description of Goods</th>
+                        <th className="px-3 py-2 text-right">Qty</th>
+                        <th className="px-3 py-2 text-right">Gross Weight (kg)</th>
+                        <th className="px-3 py-2 text-right">Volume (m³)</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-[#D0D7DE]">
+                      {items.map((item, idx) => (
+                        <tr key={item.id}>
+                          <td className="px-3 py-2 font-mono text-[#526068]">{idx + 1}</td>
+                          <td className="px-3 py-2 font-semibold text-[#080B0C]">
+                            {item.description}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono text-[#080B0C]">
+                            {item.quantity}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono text-[#080B0C]">
+                            {item.weight_kg.toLocaleString()}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono text-[#080B0C]">
+                            {item.volume_m3}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               <div className="mt-5 flex items-center justify-between border-t border-[#D0D7DE] pt-3 text-[11px] text-[#526068]">

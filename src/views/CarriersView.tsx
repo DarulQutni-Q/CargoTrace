@@ -30,16 +30,16 @@ export const CarriersListView: React.FC = () => {
       title="Carriers"
       subtitle={`${state.carriers.length} registered logistics carriers`}
     >
-      <div className="mx-auto max-w-[1440px] space-y-6 p-6">
-        <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-line bg-surface px-5 py-4">
+      <div className="mx-auto max-w-[1440px] space-y-5 p-3 sm:space-y-6 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-line bg-surface px-4 py-4 sm:px-5">
           <div>
             <h2 className="text-base font-semibold text-ink">Carrier directory</h2>
             <p className="mt-0.5 text-xs text-ink-3">
               Sea, air, and road carriers operating across international shipping corridors
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="relative w-56 sm:w-64">
+          <div className="flex w-full flex-wrap items-center gap-2.5 sm:w-auto">
+            <div className="relative w-full sm:w-64">
               <Search
                 className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-ink-3"
                 strokeWidth={1.75}
@@ -78,7 +78,8 @@ export const CarriersListView: React.FC = () => {
         </div>
 
         <div className="overflow-hidden rounded-lg border border-line bg-surface">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-line bg-base text-left text-xs text-ink-3">
                 <th className="px-5 py-3 font-medium">Carrier name</th>
@@ -137,6 +138,7 @@ export const CarriersListView: React.FC = () => {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
     </AppLayout>
@@ -175,10 +177,10 @@ export const CarrierFormView: React.FC<{ editId?: number }> = ({ editId }) => {
 
   return (
     <AppLayout title={existing ? 'Edit carrier' : 'Add carrier'}>
-      <div className="mx-auto max-w-xl p-6">
+      <div className="mx-auto max-w-xl p-3 sm:p-6">
         <form
           onSubmit={handleSubmit}
-          className="space-y-4 rounded-lg border border-line bg-surface p-6"
+          className="space-y-4 rounded-lg border border-line bg-surface p-4 sm:p-6"
         >
           <div>
             <label className="mb-1.5 block text-xs text-ink-2">Carrier name *</label>

@@ -100,9 +100,9 @@ export const ScenarioUsersView: React.FC = () => {
       title="Scenario & users"
       subtitle="Live delay threshold tuning and role-based access control"
     >
-      <div className="mx-auto max-w-[1440px] space-y-6 p-6">
+      <div className="mx-auto max-w-[1440px] space-y-5 p-3 sm:space-y-6 sm:p-6">
         {/* Group Scenario Configuration */}
-        <section className="space-y-5 rounded-lg border border-line bg-surface p-6">
+        <section className="space-y-5 rounded-lg border border-line bg-surface p-4 sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h2 className="text-base font-semibold text-ink">

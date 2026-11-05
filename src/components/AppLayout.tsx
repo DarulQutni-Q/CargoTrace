@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Bell,
   Building2,
@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   LogOut,
   MapPin,
+  Menu,
   Moon,
   Package,
   Plus,
@@ -13,6 +14,7 @@ import {
   ScrollText,
   Sliders,
   Sun,
+  X,
 } from 'lucide-react';
 import { useStore } from '../domain/store';
 import { UserRole } from '../domain/types';
@@ -35,6 +37,12 @@ export const AppLayout: React.FC<{
     formatDateTime,
   } = useStore();
   const [bellOpen, setBellOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Close mobile drawer automatically when route changes
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [route.path]);
 
   if (!currentUser) return null;
 
@@ -64,14 +72,32 @@ export const AppLayout: React.FC<{
         : 'font-medium text-ink-2 hover:bg-tint hover:text-ink'
     }`;
 
+  const handleNav = (path: string) => {
+    setMobileMenuOpen(false);
+    navigate(path);
+  };
+
   return (
     <div className="flex min-h-screen bg-base text-ink">
-      {/* Navigation Rail (240px) */}
-      <aside className="fixed inset-y-0 left-0 z-[1100] flex w-60 flex-col border-r border-line bg-rail px-3 py-4">
+      {/* Mobile Slide-Over Backdrop (< 1024px) */}
+      {mobileMenuOpen && (
+        <div
+          className="fixed inset-0 z-[1350] bg-black/50 backdrop-blur-xs lg:hidden"
+          onClick={() => setMobileMenuOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Navigation Rail (Slide-over drawer on mobile/tablet, fixed 240px rail on desktop lg+) */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-[1400] flex w-64 flex-col border-r border-line bg-rail px-3 py-4 transition-transform duration-200 ease-out lg:z-[1100] lg:w-60 lg:translate-x-0 ${
+          mobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
+        }`}
+      >
         <div className="mb-4 flex items-center justify-between px-2.5">
           <button
             type="button"
-            onClick={() => navigate('/')}
+            onClick={() => handleNav('/')}
             className="flex items-center gap-2 text-left cursor-pointer"
           >
             <span className="flex size-6 items-center justify-center rounded bg-[#080B0C] text-[#C6F432] dark:bg-[#C6F432] dark:text-[#080B0C]">
@@ -81,6 +107,15 @@ export const AppLayout: React.FC<{
               CargoTrace
             </span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-label="Close navigation menu"
+            className="flex size-7 items-center justify-center rounded-md text-ink-2 hover:bg-tint hover:text-ink lg:hidden cursor-pointer"
+          >
+            <X className="size-4" strokeWidth={1.75} />
+          </button>
         </div>
 
         <div className="space-y-0.5">
@@ -89,7 +124,7 @@ export const AppLayout: React.FC<{
           </p>
           <button
             type="button"
-            onClick={() => navigate('/')}
+            onClick={() => handleNav('/')}
             aria-current={isDashboard ? 'page' : undefined}
             className={navItemClass(isDashboard)}
           >
@@ -99,7 +134,7 @@ export const AppLayout: React.FC<{
 
           <button
             type="button"
-            onClick={() => navigate('/shipments')}
+            onClick={() => handleNav('/shipments')}
             aria-current={isShipments ? 'page' : undefined}
             className={navItemClass(isShipments)}
           >
@@ -109,7 +144,7 @@ export const AppLayout: React.FC<{
 
           <button
             type="button"
-            onClick={() => navigate('/notifications')}
+            onClick={() => handleNav('/notifications')}
             aria-current={isNotifications ? 'page' : undefined}
             className={navItemClass(isNotifications)}
           >
@@ -136,7 +171,7 @@ export const AppLayout: React.FC<{
             </p>
             <button
               type="button"
-              onClick={() => navigate('/carriers')}
+              onClick={() => handleNav('/carriers')}
               aria-current={isCarriers ? 'page' : undefined}
               className={navItemClass(isCarriers)}
             >
@@ -146,7 +181,7 @@ export const AppLayout: React.FC<{
 
             <button
               type="button"
-              onClick={() => navigate('/locations')}
+              onClick={() => handleNav('/locations')}
               aria-current={isLocations ? 'page' : undefined}
               className={navItemClass(isLocations)}
             >
@@ -156,7 +191,7 @@ export const AppLayout: React.FC<{
 
             <button
               type="button"
-              onClick={() => navigate('/scenario')}
+              onClick={() => handleNav('/scenario')}
               aria-current={isScenario ? 'page' : undefined}
               className={navItemClass(isScenario)}
             >
@@ -166,7 +201,7 @@ export const AppLayout: React.FC<{
 
             <button
               type="button"
-              onClick={() => navigate('/audit')}
+              onClick={() => handleNav('/audit')}
               aria-current={isAudit ? 'page' : undefined}
               className={navItemClass(isAudit)}
             >
@@ -226,21 +261,33 @@ export const AppLayout: React.FC<{
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <div className="flex min-h-screen min-w-0 flex-1 flex-col pl-60">
+      {/* Main Content Area (full width on mobile, pl-60 on desktop lg+) */}
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col lg:pl-60">
         {/* Header elevated above all Leaflet map panes (z-[1200]) */}
-        <header className="relative z-[1200] flex h-14 items-center justify-between border-b border-line bg-base px-6">
-          <div className="flex items-baseline gap-3 min-w-0">
-            <h1 className="text-[15px] font-semibold tracking-tight text-ink truncate">
-              {title}
-            </h1>
-            {subtitle && (
-              <span className="hidden text-xs font-medium text-ink-3 sm:inline truncate">{subtitle}</span>
-            )}
+        <header className="relative z-[1200] flex h-14 items-center justify-between gap-2 border-b border-line bg-base px-3 sm:px-6">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(true)}
+              aria-label="Open navigation menu"
+              className="flex size-8 shrink-0 items-center justify-center rounded-md border border-line bg-surface text-ink hover:bg-raised lg:hidden cursor-pointer"
+            >
+              <Menu className="size-4" strokeWidth={1.75} />
+            </button>
+            <div className="flex items-baseline gap-2.5 min-w-0">
+              <h1 className="text-sm sm:text-[15px] font-semibold tracking-tight text-ink truncate">
+                {title}
+              </h1>
+              {subtitle && (
+                <span className="hidden text-xs font-medium text-ink-3 md:inline truncate">
+                  {subtitle}
+                </span>
+              )}
+            </div>
           </div>
 
-          <div className="flex items-center gap-2.5 shrink-0">
-            <div className="hidden items-center gap-2 text-xs text-ink-3 md:flex">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+            <div className="hidden items-center gap-2 text-xs text-ink-3 xl:flex">
               <span className="font-medium">{roleLabel(currentUser.role)}</span>
               <span aria-hidden="true">·</span>
               <span className="font-semibold text-ink">{currentUser.name}</span>
@@ -252,17 +299,17 @@ export const AppLayout: React.FC<{
               onClick={toggleTheme}
               title={theme === 'dark' ? 'Switch to White Mode' : 'Switch to Dark Mode'}
               aria-label={theme === 'dark' ? 'Switch to White Mode' : 'Switch to Dark Mode'}
-              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-line bg-surface px-2.5 text-xs font-semibold text-ink transition-colors hover:border-line-strong hover:bg-raised cursor-pointer"
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-line bg-surface px-2 sm:px-2.5 text-xs font-semibold text-ink transition-colors hover:border-line-strong hover:bg-raised cursor-pointer"
             >
               {theme === 'dark' ? (
                 <>
                   <Sun className="size-3.5 text-[#C6F432]" strokeWidth={2} />
-                  <span>White mode</span>
+                  <span className="hidden sm:inline">White mode</span>
                 </>
               ) : (
                 <>
                   <Moon className="size-3.5 text-[#080B0C]" strokeWidth={2} />
-                  <span>Dark mode</span>
+                  <span className="hidden sm:inline">Dark mode</span>
                 </>
               )}
             </button>
@@ -290,7 +337,7 @@ export const AppLayout: React.FC<{
                     className="fixed inset-0 z-[1250]"
                     onClick={() => setBellOpen(false)}
                   />
-                  <div className="absolute right-0 top-full z-[1300] mt-2 w-80 rounded-lg border border-line-strong bg-overlay p-1.5 shadow-[0_20px_50px_rgba(8,11,12,0.32)]">
+                  <div className="fixed left-3 right-3 top-14 z-[1300] rounded-lg border border-line-strong bg-overlay p-1.5 shadow-[0_20px_50px_rgba(8,11,12,0.32)] sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80">
                     <div className="flex items-center justify-between border-b border-line px-3 py-2">
                       <span className="text-xs font-semibold text-ink">Notifications</span>
                       <span className="rounded bg-tint px-1.5 py-0.5 font-mono text-[11px] font-medium text-ink-2">
@@ -358,10 +405,13 @@ export const AppLayout: React.FC<{
             <button
               type="button"
               onClick={() => navigate('/shipments/create')}
-              className="inline-flex h-8 items-center gap-1.5 rounded-md bg-brand px-3 text-xs font-semibold text-brand-ink transition-colors hover:bg-brand-hover focus-visible:outline-none whitespace-nowrap shrink-0 cursor-pointer"
+              className="inline-flex h-8 items-center gap-1.5 rounded-md bg-brand px-2.5 sm:px-3 text-xs font-semibold text-brand-ink transition-colors hover:bg-brand-hover focus-visible:outline-none whitespace-nowrap shrink-0 cursor-pointer"
             >
               <Plus className="size-3.5" strokeWidth={2} />
-              {canCreateShipment ? 'New shipment' : 'Request shipment'}
+              <span className="hidden sm:inline">
+                {canCreateShipment ? 'New shipment' : 'Request shipment'}
+              </span>
+              <span className="sm:hidden">New</span>
             </button>
           </div>
         </header>

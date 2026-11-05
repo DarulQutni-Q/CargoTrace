@@ -256,12 +256,12 @@ export const ShipmentsIndexView: React.FC = () => {
       title="Shipments"
       subtitle={`${filteredShipments.length} active shipments monitored`}
     >
-      <div className="flex h-[calc(100vh-56px)] flex-col overflow-hidden bg-base">
+      <div className="flex min-h-[calc(100vh-56px)] flex-col bg-base lg:h-[calc(100vh-56px)] lg:overflow-hidden">
         {/* Top Filter & View Control Bar */}
-        <div className="shrink-0 border-b border-line bg-base px-5 py-2.5">
+        <div className="shrink-0 border-b border-line bg-base px-3 py-2.5 sm:px-5">
           <div className="flex flex-wrap items-center justify-between gap-2.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative w-52 xl:w-64">
+            <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto">
+              <div className="relative w-full sm:w-52 xl:w-64">
                 <Search
                   className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-ink-3"
                   strokeWidth={1.75}
@@ -277,7 +277,7 @@ export const ShipmentsIndexView: React.FC = () => {
               </div>
 
               {/* Segmented Filter Tabs */}
-              <div className="flex items-center gap-0.5 rounded-md border border-line bg-surface p-0.5">
+              <div className="flex max-w-full items-center gap-0.5 overflow-x-auto rounded-md border border-line bg-surface p-0.5">
                 <button
                   type="button"
                   onClick={() =>
@@ -357,7 +357,7 @@ export const ShipmentsIndexView: React.FC = () => {
             </div>
 
             {/* Right: Sort & View Mode Switcher */}
-            <div className="flex items-center gap-2">
+            <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end">
               <div className="flex items-center gap-1.5">
                 <ListFilter className="size-3.5 text-ink-3" strokeWidth={1.5} />
                 <select
@@ -405,7 +405,7 @@ export const ShipmentsIndexView: React.FC = () => {
 
           {/* Expandable Filters: Status, Carrier, Origin, Destination, Date Range */}
           {showFilters && (
-            <div className="mt-2.5 grid grid-cols-2 gap-3 border-t border-line pt-2.5 sm:grid-cols-3 lg:grid-cols-6">
+            <div className="mt-2.5 grid grid-cols-1 gap-3 border-t border-line pt-2.5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
               <div>
                 <label className="mb-1 block text-xs text-ink-3">
                   Lifecycle status
@@ -509,7 +509,7 @@ export const ShipmentsIndexView: React.FC = () => {
         {viewMode === 'split' ? (
           <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[410px_1fr]">
             {/* Left Feed: Flat Hairline-Divided Shipment List */}
-            <section className="flex min-h-0 flex-col border-r border-line bg-base">
+            <section className="flex max-h-[480px] min-h-0 flex-col border-b border-line bg-base lg:max-h-none lg:border-b-0 lg:border-r">
               <div className="flex items-center justify-between border-b border-line px-4 py-2 text-xs">
                 <span className="font-medium text-ink-2">
                   Tracking feed <span className="font-mono text-ink-3">({filteredShipments.length})</span>
@@ -574,32 +574,32 @@ export const ShipmentsIndexView: React.FC = () => {
             </section>
 
             {/* Right Map: Cartographic Canvas + Clean Single-Elevation Inspector */}
-            <section className="isolate relative z-0 flex min-h-[420px] flex-col bg-map-bg">
-              <div className="relative flex-1">
+            <section className="isolate relative z-0 flex flex-col bg-map-bg lg:min-h-[420px]">
+              <div className="relative h-[340px] w-full sm:h-[420px] lg:h-auto lg:flex-1">
                 <WorldMap
                   shipments={mapEntries}
                   focusId={activeFocusId}
                   onSelectShipment={(id) => setSelectedId(id)}
                 />
+
+                {/* Quiet Map Legend */}
+                <div className="pointer-events-none absolute right-3 top-3 z-[400] flex flex-wrap items-center gap-2.5 rounded-md border border-line-strong bg-overlay px-2.5 py-1 text-[11px] font-medium text-ink shadow-md sm:right-4 sm:top-4 sm:gap-4 sm:px-3 sm:py-1.5 sm:text-xs">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="inline-block h-[2.5px] w-3.5 bg-[#080B0C] dark:bg-[#C6F432]" />
+                    Completed leg
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="inline-block h-0 w-3.5 border-t-2 border-dashed border-ink-2" />
+                    Remaining leg
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="inline-block size-2 rounded-full bg-emerald-600 dark:bg-emerald-400" />
+                    Delivered
+                  </span>
+                </div>
               </div>
 
-              {/* Quiet Map Legend */}
-              <div className="pointer-events-none absolute right-4 top-4 z-[400] flex flex-wrap items-center gap-4 rounded-md border border-line-strong bg-overlay px-3 py-1.5 text-xs font-medium text-ink shadow-md">
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="inline-block h-[2.5px] w-4 bg-[#080B0C] dark:bg-[#C6F432]" />
-                  Completed leg
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="inline-block h-0 w-4 border-t-2 border-dashed border-ink-2" />
-                  Remaining leg
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="inline-block size-2 rounded-full bg-emerald-600 dark:bg-emerald-400" />
-                  Delivered
-                </span>
-              </div>
-
-              {/* Single-Elevation Active Shipment Overlay */}
+              {/* Single-Elevation Active Shipment Inspector (stacked cleanly below map on mobile, floating card on md+) */}
               {focusedShipment && (() => {
                 const origin = state.locations.find(
                   (l) => l.id === focusedShipment.origin_location_id,
@@ -617,9 +617,9 @@ export const ShipmentsIndexView: React.FC = () => {
                 );
 
                 return (
-                  <div className="absolute bottom-4 left-4 right-4 z-[400] rounded-lg border border-line-strong bg-overlay p-4 shadow-2xl xl:left-auto xl:w-[440px]">
-                    <div className="flex items-start justify-between gap-3 border-b border-line pb-3">
-                      <div>
+                  <div className="border-t border-line bg-overlay p-4 md:absolute md:bottom-4 md:left-4 md:right-4 md:z-[400] md:rounded-lg md:border md:border-line-strong md:shadow-2xl xl:left-auto xl:w-[440px]">
+                    <div className="flex flex-wrap items-start justify-between gap-2 border-b border-line pb-3">
+                      <div className="min-w-0">
                         <span className="text-xs font-medium text-ink-3">
                           {carrier.name} · {carrier.service_type}
                         </span>

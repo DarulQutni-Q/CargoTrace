@@ -45,16 +45,16 @@ export const AuditView: React.FC = () => {
       title="Audit log"
       subtitle={`${logs.length} recorded state transitions and configuration updates`}
     >
-      <div className="mx-auto max-w-[1440px] space-y-6 p-6">
-        <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-line bg-surface px-5 py-4">
+      <div className="mx-auto max-w-[1440px] space-y-5 p-3 sm:space-y-6 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-line bg-surface px-4 py-4 sm:px-5">
           <div>
             <h2 className="text-base font-semibold text-ink">Immutable Audit Trail</h2>
             <p className="mt-0.5 text-xs text-ink-3">
               Filter state transitions by actor, action type, entity ID, or field delta
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="relative w-64 sm:w-72">
+          <div className="flex w-full flex-wrap items-center gap-2.5 sm:w-auto">
+            <div className="relative w-full sm:w-72">
               <Search
                 className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-ink-3"
                 strokeWidth={1.75}
@@ -86,7 +86,8 @@ export const AuditView: React.FC = () => {
         </div>
 
         <div className="overflow-hidden rounded-lg border border-line bg-surface">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-line bg-base text-left text-xs text-ink-3">
                 <th className="px-5 py-3 font-medium">Timestamp</th>
@@ -148,6 +149,7 @@ export const AuditView: React.FC = () => {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
     </AppLayout>

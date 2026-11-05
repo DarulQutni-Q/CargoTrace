@@ -24,8 +24,8 @@ export const NotificationsView: React.FC = () => {
       title="Notifications"
       subtitle={`${userNotifications.length} notifications · ${unreadCount} unread`}
     >
-      <div className="mx-auto max-w-4xl space-y-5 p-6">
-        <div className="flex items-center justify-between rounded-lg border border-line bg-surface px-5 py-4">
+      <div className="mx-auto max-w-4xl space-y-4 p-3 sm:space-y-5 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-surface px-4 py-3.5 sm:px-5 sm:py-4">
           <div>
             <h2 className="text-base font-semibold text-ink">Event dispatch log</h2>
             <p className="mt-0.5 text-xs text-ink-3">

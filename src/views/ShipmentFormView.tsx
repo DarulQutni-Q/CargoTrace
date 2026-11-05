@@ -372,9 +372,9 @@ export const ShipmentFormView: React.FC<{ editId?: number }> = ({ editId }) => {
           : undefined
       }
     >
-      <div className="mx-auto max-w-3xl p-6">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <section className="rounded-lg border border-line bg-surface p-6">
+      <div className="mx-auto max-w-3xl p-3 sm:p-6">
+        <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
+          <section className="rounded-lg border border-line bg-surface p-4 sm:p-6">
             <h2 className="text-sm font-semibold text-ink">
               1. Corridor route &amp; parties
             </h2>
@@ -712,7 +712,7 @@ export const ShipmentFormView: React.FC<{ editId?: number }> = ({ editId }) => {
             )}
           </section>
 
-          <section className="rounded-lg border border-line bg-surface p-6">
+          <section className="rounded-lg border border-line bg-surface p-4 sm:p-6">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-sm font-semibold text-ink">
                 2. Cargo load &amp; schedule
@@ -821,7 +821,7 @@ export const ShipmentFormView: React.FC<{ editId?: number }> = ({ editId }) => {
             </div>
           </section>
 
-          <section className="rounded-lg border border-line bg-surface p-6">
+          <section className="rounded-lg border border-line bg-surface p-4 sm:p-6">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h2 className="text-sm font-semibold text-ink">
@@ -831,7 +831,7 @@ export const ShipmentFormView: React.FC<{ editId?: number }> = ({ editId }) => {
                   Manifest sum: {manifestTotals.weight.toLocaleString()} kg · {manifestTotals.volume} m³
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={() => syncTotalsFromItems(items)}
@@ -862,9 +862,9 @@ export const ShipmentFormView: React.FC<{ editId?: number }> = ({ editId }) => {
               {items.map((item, idx) => (
                 <div
                   key={idx}
-                  className="grid grid-cols-[1fr_5rem_6rem_6rem_2.25rem] items-end gap-2"
+                  className="grid grid-cols-[1fr_1fr_1fr_2.25rem] items-end gap-2 sm:grid-cols-[1fr_5rem_6rem_6rem_2.25rem]"
                 >
-                  <div>
+                  <div className="col-span-4 sm:col-span-1">
                     <label className="mb-1 block text-xs font-medium text-ink-2">
                       Description
                     </label>
