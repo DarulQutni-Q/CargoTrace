@@ -233,10 +233,18 @@
 
         <!-- Right Map Column -->
         <section class="relative flex flex-col bg-[#aad3df]">
-            <div id="shipment-detail-map" class="h-[360px] w-full sm:h-[420px] lg:h-full lg:flex-1"></div>
+            <div class="relative h-[360px] w-full sm:h-[420px] lg:h-full lg:min-h-[540px] lg:flex-1">
+                <div id="shipment-detail-map" class="absolute inset-0 h-full w-full"></div>
+                <div id="shipment-detail-globe" data-testid="globe-3d-container" class="absolute inset-0 z-10 hidden h-full w-full select-none overflow-hidden"></div>
+                @include('partials.map-projection-toggle', ['prefix' => 'detail'])
+            </div>
         </section>
     </div>
 </div>
+
+@push('scripts')
+<script src="{{ asset('js/globe3d.js') }}"></script>
+@endpush
 
 @push('scripts')
 <script>
@@ -268,6 +276,24 @@
         map.invalidateSize();
         map.fitBounds(route.getBounds(), { padding: [30, 30] });
         window.addEventListener('load', function () { map.invalidateSize(); });
+
+        // 3D globe projection (vanilla canvas port of Globe3DCanvas.tsx).
+        // Click the vessel marker to open the focused list on /shipments.
+        const globeEntry = @json($globeEntry);
+        const detailGlobeEl = document.getElementById('shipment-detail-globe');
+        if (detailGlobeEl && window.CargoTraceGlobe) {
+            const detailGlobe = window.CargoTraceGlobe.mount(detailGlobeEl, [globeEntry], {{ $shipment->id }}, function (id) {
+                window.location.href = '/shipments?focus=' + id;
+            });
+            window.CargoTraceGlobe.initProjection({
+                btn2d: document.getElementById('detail-proj-2d'),
+                btn3d: document.getElementById('detail-proj-3d'),
+                mapEl: mapEl,
+                globeEl: detailGlobeEl,
+                onShow2D: function () { map.invalidateSize(); },
+                onShow3D: function () { detailGlobe.render(); }
+            });
+        }
     });
 </script>
 @endpush

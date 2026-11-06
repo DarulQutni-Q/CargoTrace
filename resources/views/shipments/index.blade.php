@@ -273,12 +273,14 @@
         </section>
 
         <!-- Right Map: Cartographic Canvas + Inspector -->
-        <section class="isolate relative z-0 flex flex-col bg-[var(--bg-map)] lg:min-h-[420px]">
+        <section class="isolate relative z-0 flex flex-col bg-[var(--bg-map)] lg:min-h-[540px]">
             <div class="relative h-[340px] w-full sm:h-[420px] lg:h-auto lg:flex-1">
                 <div id="world-map" data-testid="world-map" class="isolate relative z-0 h-full w-full bg-[var(--bg-map)]"></div>
+                <div id="world-globe" data-testid="globe-3d-container" class="absolute inset-0 z-10 hidden h-full w-full select-none overflow-hidden bg-[var(--bg-map)]"></div>
+                @include('partials.map-projection-toggle', ['prefix' => 'shipments'])
 
                 <!-- Quiet Map Legend -->
-                <div class="pointer-events-none absolute right-3 top-3 z-[400] flex flex-wrap items-center gap-2.5 rounded-md border border-[var(--line-strong)] bg-[var(--bg-overlay)] px-2.5 py-1 text-[11px] font-medium text-[var(--ink-1)] shadow-md sm:right-4 sm:top-4 sm:gap-4 sm:px-3 sm:py-1.5 sm:text-xs">
+                <div class="pointer-events-none absolute right-3 top-12 z-[400] flex flex-wrap items-center gap-2.5 rounded-md border border-[var(--line-strong)] bg-[var(--bg-overlay)] px-2.5 py-1 text-[11px] font-medium text-[var(--ink-1)] shadow-md sm:right-4 sm:top-4 sm:gap-4 sm:px-3 sm:py-1.5 sm:text-xs">
                     <span class="inline-flex items-center gap-1.5">
                         <span class="inline-block h-[2.5px] w-3.5 bg-[#080B0C] dark:bg-[#C6F432]"></span>
                         Completed leg
@@ -478,6 +480,10 @@
     </div>
     @endif
 </div>
+
+@push('scripts')
+<script src="{{ asset('js/globe3d.js') }}"></script>
+@endpush
 
 @push('scripts')
 <script>
@@ -696,6 +702,23 @@
         render();
         window.addEventListener('ct:theme', render);
         window.addEventListener('load', function () { map.invalidateSize(); });
+
+        // 3D globe projection (vanilla canvas port of Globe3DCanvas.tsx).
+        // Same entries as the Leaflet map; click a vessel marker to focus it.
+        var globeEl = document.getElementById('world-globe');
+        if (globeEl && window.CargoTraceGlobe) {
+            var globe = window.CargoTraceGlobe.mount(globeEl, entries, focusId, function (id) {
+                window.location.href = focusUrl(id);
+            });
+            window.CargoTraceGlobe.initProjection({
+                btn2d: document.getElementById('shipments-proj-2d'),
+                btn3d: document.getElementById('shipments-proj-3d'),
+                mapEl: mapEl,
+                globeEl: globeEl,
+                onShow2D: function () { map.invalidateSize(); },
+                onShow3D: function () { globe.render(); }
+            });
+        }
     });
 </script>
 @endif

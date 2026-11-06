@@ -592,10 +592,47 @@ class CargoTraceWebController extends Controller
         $corridor = $this->lifecycleService->buildOrderedCorridorWaypoints($shipment);
         $allowedNext = $this->lifecycleService->allowedNextStatuses($shipment->current_status);
 
+        // Single-entry payload for the 3D globe (same shape as the index mapEntries).
+        $stops = $corridor['intermediate_stops'];
+        $lastStop = end($stops) ?: null;
+        $globeEntry = [
+            'id' => $shipment->id,
+            'shipment_number' => $shipment->shipment_number,
+            'status' => $shipment->current_status,
+            'delayed' => (bool) ($delay['delayed'] ?? false),
+            'origin' => [
+                'latitude' => (float) $corridor['origin']['latitude'],
+                'longitude' => (float) $corridor['origin']['longitude'],
+                'location_name' => $corridor['origin']['location_name'],
+                'code' => $corridor['origin']['code'],
+            ],
+            'destination' => [
+                'latitude' => (float) $corridor['destination']['latitude'],
+                'longitude' => (float) $corridor['destination']['longitude'],
+                'location_name' => $corridor['destination']['location_name'],
+                'code' => $corridor['destination']['code'],
+            ],
+            'current_position' => $lastStop ? [
+                'latitude' => (float) $lastStop['latitude'],
+                'longitude' => (float) $lastStop['longitude'],
+                'location_name' => $lastStop['location_name'],
+            ] : [
+                'latitude' => (float) $corridor['origin']['latitude'],
+                'longitude' => (float) $corridor['origin']['longitude'],
+                'location_name' => $corridor['origin']['location_name'],
+            ],
+            'checkpoints' => array_map(fn (array $s) => [
+                'latitude' => (float) $s['latitude'],
+                'longitude' => (float) $s['longitude'],
+                'location_name' => $s['location_name'],
+            ], $corridor['intermediate_stops']),
+        ];
+
         return view('shipments.show', [
             'shipment' => $shipment,
             'delay' => $delay,
             'corridor' => $corridor,
+            'globeEntry' => $globeEntry,
             'allowedNext' => $allowedNext,
             'provinces' => IndonesianPortCatalog::PROVINCES,
             'portPresets' => IndonesianPortCatalog::presets(),
