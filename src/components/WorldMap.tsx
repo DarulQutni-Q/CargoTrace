@@ -1,8 +1,10 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
+import { Globe, Map as MapIcon } from 'lucide-react';
 import { bearingDeg, greatCirclePoints } from '../domain/rules';
 import { ShipmentStatus } from '../domain/types';
 import { useStore } from '../domain/store';
+import { Globe3DCanvas } from './Globe3DCanvas';
 
 export interface MapShipmentPoint {
   latitude: number;
@@ -52,10 +54,31 @@ export const WorldMap: React.FC<{
   onSelectShipment?: (id: number) => void;
 }> = ({ shipments, focusId, onSelectShipment }) => {
   const { theme } = useStore();
+  const [projection, setProjection] = useState<'2d' | '3d'>(() => {
+    try {
+      return sessionStorage.getItem('cargotrace_map_projection_v1') === '3d' ? '3d' : '2d';
+    } catch {
+      return '2d';
+    }
+  });
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const tileLayerRef = useRef<L.TileLayer | null>(null);
   const layerGroupRef = useRef<L.LayerGroup | null>(null);
+
+  const handleProjectionChange = (mode: '2d' | '3d') => {
+    setProjection(mode);
+    try {
+      sessionStorage.setItem('cargotrace_map_projection_v1', mode);
+    } catch {
+      // ignore storage errors
+    }
+    if (mode === '2d') {
+      window.setTimeout(() => {
+        mapRef.current?.invalidateSize();
+      }, 60);
+    }
+  };
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -421,11 +444,54 @@ export const WorldMap: React.FC<{
   }, [shipments, focusId, onSelectShipment, theme]);
 
   return (
-    <div
-      id="world-map"
-      data-testid="world-map"
-      ref={containerRef}
-      className="isolate relative z-0 h-full w-full bg-map-bg"
-    />
+    <div className="isolate absolute inset-0 z-0 h-full w-full overflow-hidden bg-map-bg">
+      {/* Top-Left 2D Map / 3D Globe Projection Switcher */}
+      <div className="absolute left-2.5 top-2.5 z-[450] inline-flex items-center rounded-md border border-line-strong bg-overlay p-0.5 text-xs shadow-md sm:left-4 sm:top-4">
+        <button
+          type="button"
+          onClick={() => handleProjectionChange('2d')}
+          className={`inline-flex h-7 items-center gap-1.5 rounded px-2.5 text-[11px] font-semibold transition-colors cursor-pointer sm:text-xs ${
+            projection === '2d'
+              ? 'bg-[#080B0C] text-white dark:bg-[#C6F432] dark:text-[#080B0C]'
+              : 'text-ink-2 hover:text-ink'
+          }`}
+        >
+          <MapIcon className="size-3.5" strokeWidth={1.75} />
+          <span>2D Map</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => handleProjectionChange('3d')}
+          className={`inline-flex h-7 items-center gap-1.5 rounded px-2.5 text-[11px] font-semibold transition-colors cursor-pointer sm:text-xs ${
+            projection === '3d'
+              ? 'bg-[#080B0C] text-white dark:bg-[#C6F432] dark:text-[#080B0C]'
+              : 'text-ink-2 hover:text-ink'
+          }`}
+        >
+          <Globe className="size-3.5" strokeWidth={1.75} />
+          <span>3D Globe</span>
+        </button>
+      </div>
+
+      {/* 2D Leaflet Map Layer */}
+      <div
+        id="world-map"
+        data-testid="world-map"
+        ref={containerRef}
+        className={` !absolute !inset-0 h-full w-full ${
+          projection === '2d' ? 'block' : 'invisible pointer-events-none'
+        }`}
+      />
+
+      {/* 3D Interactive Spherical Globe Layer */}
+      {projection === '3d' && (
+        <Globe3DCanvas
+          shipments={shipments}
+          focusId={focusId}
+          theme={theme}
+          onSelectShipment={onSelectShipment}
+        />
+      )}
+    </div>
   );
 };

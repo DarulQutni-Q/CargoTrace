@@ -1415,8 +1415,8 @@ export const ShipmentShowView: React.FC<{ shipmentId: number }> = ({ shipmentId 
           </section>
 
           {/* Right Column: Full-Height Cartographic Map */}
-          <section className="isolate relative z-0 flex flex-col bg-map-bg lg:min-h-[420px]">
-            <div className="relative h-[360px] w-full sm:h-[420px] lg:h-auto lg:flex-1">
+          <section className="isolate relative z-0 flex flex-col bg-map-bg lg:min-h-[540px]">
+            <div className="relative h-[360px] w-full sm:h-[420px] lg:h-full lg:min-h-[540px] lg:flex-1">
               <WorldMap shipments={[mapEntry]} focusId={shipment.id} />
 
               {/* Quiet Map Legend */}

@@ -574,8 +574,8 @@ export const ShipmentsIndexView: React.FC = () => {
             </section>
 
             {/* Right Map: Cartographic Canvas + Clean Single-Elevation Inspector */}
-            <section className="isolate relative z-0 flex flex-col bg-map-bg lg:min-h-[420px]">
-              <div className="relative h-[340px] w-full sm:h-[420px] lg:h-auto lg:flex-1">
+            <section className="isolate relative z-0 flex flex-col bg-map-bg lg:min-h-[540px]">
+              <div className="relative h-[340px] w-full sm:h-[420px] lg:h-full lg:min-h-[540px] lg:flex-1">
                 <WorldMap
                   shipments={mapEntries}
                   focusId={activeFocusId}
