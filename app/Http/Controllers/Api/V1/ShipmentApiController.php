@@ -359,4 +359,165 @@ class ShipmentApiController extends Controller
             'catalog_presets' => $presets,
         ]);
     }
+
+    /**
+     * POST /api/register (Slide 12 Authentication)
+     */
+    public function register(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'unique:users,email'],
+            'password' => ['required', 'string', 'min:8'],
+            'role' => ['nullable', 'in:ADMIN,LOGISTICS_OPERATOR,CUSTOMER'],
+        ]);
+
+        $user = \App\Models\User::create([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'password' => \Illuminate\Support\Facades\Hash::make($validated['password']),
+            'role' => $validated['role'] ?? 'CUSTOMER',
+        ]);
+
+        return response()->json(['status' => 'ok', 'data' => $user], 201);
+    }
+
+    /**
+     * POST /api/login (Slide 12 Authentication)
+     */
+    public function login(Request $request): JsonResponse
+    {
+        $credentials = $request->validate([
+            'email' => ['required', 'email'],
+            'password' => ['required', 'string'],
+        ]);
+
+        $user = \App\Models\User::where('email', $credentials['email'])->first();
+        if (! $user || ! \Illuminate\Support\Facades\Hash::check($credentials['password'], $user->password)) {
+            return response()->json(['status' => 'error', 'message' => 'Invalid credentials.'], 401);
+        }
+
+        return response()->json([
+            'status' => 'ok',
+            'token' => base64_encode($user->id . '|' . $user->email . '|' . now()->timestamp),
+            'user' => $user,
+        ]);
+    }
+
+    /**
+     * POST /api/logout & GET /api/user (Slide 12 Authentication)
+     */
+    public function logout(): JsonResponse
+    {
+        return response()->json(['status' => 'ok', 'message' => 'Logged out.']);
+    }
+
+    public function currentUser(Request $request): JsonResponse
+    {
+        return response()->json(['status' => 'ok', 'data' => $request->user()]);
+    }
+
+    /**
+     * PUT/PATCH /api/shipments/{shipment} & DELETE /api/shipments/{shipment} (Slide 12 Shipments)
+     */
+    public function update(Request $request, Shipment $shipment): JsonResponse
+    {
+        $validated = $request->validate([
+            'cargo_type' => ['sometimes', 'string', 'max:255'],
+            'weight_kg' => ['sometimes', 'numeric', 'gt:0'],
+            'volume_m3' => ['sometimes', 'numeric', 'gt:0'],
+            'expected_arrival_at' => ['sometimes', 'date'],
+            'estimated_arrival_at' => ['nullable', 'date'],
+        ]);
+
+        $shipment->update($validated);
+
+        return response()->json(['status' => 'ok', 'data' => $shipment->fresh()]);
+    }
+
+    public function destroy(Shipment $shipment): JsonResponse
+    {
+        $shipment->update(['archived_at' => now()]);
+
+        return response()->json(['status' => 'ok', 'message' => 'Shipment archived.']);
+    }
+
+    /**
+     * GET /api/shipments/{shipment}/tracking (Slide 12 Tracking)
+     */
+    public function trackingIndex(Shipment $shipment): JsonResponse
+    {
+        return response()->json([
+            'status' => 'ok',
+            'data' => $shipment->trackingEvents()->orderBy('occurred_at')->get(),
+        ]);
+    }
+
+    /**
+     * GET/POST /api/carriers & GET/POST /api/locations (Slide 12 Related Resources)
+     */
+    public function carriersIndex(): JsonResponse
+    {
+        return response()->json(['status' => 'ok', 'data' => Carrier::orderBy('name')->get()]);
+    }
+
+    public function carriersStore(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'code' => ['required', 'string', 'max:16', 'unique:carriers,code'],
+            'service_type' => ['required', 'in:SEA,AIR,ROAD'],
+            'contact_email' => ['nullable', 'email'],
+            'is_active' => ['boolean'],
+        ]);
+
+        return response()->json(['status' => 'ok', 'data' => Carrier::create($validated)], 201);
+    }
+
+    public function locationsIndex(): JsonResponse
+    {
+        return response()->json(['status' => 'ok', 'data' => Location::orderBy('name')->get()]);
+    }
+
+    public function locationsStore(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'code' => ['required', 'string', 'max:16', 'unique:locations,code'],
+            'city' => ['required', 'string', 'max:255'],
+            'province' => ['nullable', 'string', 'max:255'],
+            'country' => ['required', 'string', 'max:255'],
+            'latitude' => ['required', 'numeric', 'between:-90,90'],
+            'longitude' => ['required', 'numeric', 'between:-180,180'],
+        ]);
+
+        return response()->json(['status' => 'ok', 'data' => Location::create($validated)], 201);
+    }
+
+    /**
+     * GET /api/shipments/{shipment}/exceptions & PATCH /api/exceptions/{exception} (Slide 12 Exceptions)
+     */
+    public function exceptionsIndex(Shipment $shipment): JsonResponse
+    {
+        return response()->json(['status' => 'ok', 'data' => $shipment->exceptions]);
+    }
+
+    public function updateException(Request $request, ShipmentException $exception): JsonResponse
+    {
+        $validated = $request->validate([
+            'status' => ['required', 'in:OPEN,INVESTIGATING,RESOLVED'],
+        ]);
+
+        if ($exception->status === ShipmentException::STATUS_RESOLVED) {
+            return response()->json(['status' => 'error', 'message' => 'Resolved exceptions cannot be reopened.'], 422);
+        }
+
+        $exception->status = $validated['status'];
+        if ($validated['status'] === ShipmentException::STATUS_RESOLVED) {
+            $exception->resolved_at = now();
+        }
+        $exception->save();
+
+        return response()->json(['status' => 'ok', 'data' => $exception]);
+    }
 }

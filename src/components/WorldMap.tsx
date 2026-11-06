@@ -28,11 +28,9 @@ export interface MapShipmentEntry {
   checkpoints?: MapShipmentPoint[];
 }
 
-const DARK_TILES_URL =
-  'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}';
-const LIGHT_TILES_URL =
-  'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}';
-const ATTRIBUTION = 'Tiles &copy; Esri &middot; OpenStreetMap contributors';
+const OSM_TILES_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+const ATTRIBUTION =
+  '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors';
 
 function pointPopup(shipment: MapShipmentEntry, kind: string, point: MapShipmentPoint): string {
   return `
@@ -76,30 +74,32 @@ export const WorldMap: React.FC<{
     if (mode === '2d') {
       window.setTimeout(() => {
         mapRef.current?.invalidateSize();
-      }, 60);
+      }, 50);
     }
   };
 
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
+    if (projection !== '2d') return;
+    const el = containerRef.current;
+    if (!el || mapRef.current) return;
 
-    const map = L.map(containerRef.current, {
+    const map = L.map(el, {
       worldCopyJump: true,
       attributionControl: true,
       zoomControl: false,
       minZoom: 2,
-      maxZoom: 10,
+      maxZoom: 18,
       maxBounds: [
-        [-72, -180],
-        [78, 180],
+        [-82, -200],
+        [82, 200],
       ],
-      maxBoundsViscosity: 1.0,
-    }).setView([20, 55], 3);
+      maxBoundsViscosity: 0.85,
+    }).setView([18, 60], 3);
 
     L.control.zoom({ position: 'bottomright' }).addTo(map);
-    const tileLayer = L.tileLayer(theme === 'dark' ? DARK_TILES_URL : LIGHT_TILES_URL, {
+    const tileLayer = L.tileLayer(OSM_TILES_URL, {
       attribution: ATTRIBUTION,
-      maxZoom: 10,
+      maxZoom: 18,
       minZoom: 2,
     }).addTo(map);
 
@@ -108,19 +108,25 @@ export const WorldMap: React.FC<{
     tileLayerRef.current = tileLayer;
     layerGroupRef.current = group;
 
+    // Ensure Leaflet recalculates tile coverage whenever container dimensions settle or resize
+    const ro = new ResizeObserver(() => {
+      map.invalidateSize({ animate: false });
+    });
+    ro.observe(el);
+
+    const timer = window.setTimeout(() => {
+      map.invalidateSize({ animate: false });
+    }, 100);
+
     return () => {
+      window.clearTimeout(timer);
+      ro.disconnect();
       map.remove();
       mapRef.current = null;
       tileLayerRef.current = null;
       layerGroupRef.current = null;
     };
-  }, []);
-
-  // Dynamically switch tile layer when toggling between Dark Mode (#080B0C) and White Mode (#FFFFFF)
-  useEffect(() => {
-    if (!tileLayerRef.current) return;
-    tileLayerRef.current.setUrl(theme === 'dark' ? DARK_TILES_URL : LIGHT_TILES_URL);
-  }, [theme]);
+  }, [projection]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -414,6 +420,7 @@ export const WorldMap: React.FC<{
       }
     });
 
+    map.invalidateSize({ animate: false });
     if (focusId !== 0 && bounds.length > 0) {
       const focused = shipments.find((s) => s.id === focusId);
       const focusBounds: [number, number][] = [];
@@ -441,7 +448,7 @@ export const WorldMap: React.FC<{
     } else if (bounds.length > 0) {
       map.fitBounds(bounds, { padding: [55, 55], maxZoom: 4 });
     }
-  }, [shipments, focusId, onSelectShipment, theme]);
+  }, [shipments, focusId, onSelectShipment, theme, projection]);
 
   return (
     <div className="isolate absolute inset-0 z-0 h-full w-full overflow-hidden bg-map-bg">
@@ -478,8 +485,8 @@ export const WorldMap: React.FC<{
         id="world-map"
         data-testid="world-map"
         ref={containerRef}
-        className={` !absolute !inset-0 h-full w-full ${
-          projection === '2d' ? 'block' : 'invisible pointer-events-none'
+        className={`absolute inset-0 h-full w-full ${
+          projection === '2d' ? 'z-10 block opacity-100' : 'pointer-events-none -z-10 opacity-0'
         }`}
       />
 

@@ -65,6 +65,7 @@ export interface Location {
   name: string;
   code: string;
   city: string;
+  province?: string | null;
   country: string;
   latitude: number;
   longitude: number;

@@ -1,219 +1,136 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Compass, Pause, Play, Plus, Minus, RotateCcw } from 'lucide-react';
+import { Compass, Pause, Play, Plus, Minus, RotateCcw, Crosshair } from 'lucide-react';
 import { greatCirclePoints } from '../domain/rules';
 import { ShipmentStatus } from '../domain/types';
 import { MapShipmentEntry, MapShipmentPoint } from './WorldMap';
 
-/**
- * Simplified high-recognition world continental & archipelago polygons [lat, lon][]
- * including detailed Southeast Asia (Sumatra/Aceh, Java, Kalimantan, Sulawesi, Papua, Singapore),
- * Eurasia, Europe (Rotterdam/Hamburg), Arabia/Suez, Africa, Australia, and Americas.
- */
-const WORLD_LAND_POLYGONS: [number, number][][] = [
-  // Sumatra (Aceh: Banda Aceh, Sabang, Bireuen, Lhokseumawe, Krueng Geukuh -> Lampung)
-  [
-    [5.8, 95.2],
-    [5.3, 97.1],
-    [3.8, 98.7],
-    [1.7, 101.4],
-    [-0.5, 103.6],
-    [-3.0, 104.8],
-    [-5.9, 105.8],
-    [-5.5, 104.2],
-    [-3.8, 102.2],
-    [-1.0, 100.3],
-    [2.0, 98.0],
-    [4.1, 96.1],
-    [5.8, 95.2],
-  ],
-  // Java (Merak, Jakarta, Semarang, Surabaya, Banyuwangi)
-  [
-    [-6.0, 106.0],
-    [-6.1, 106.9],
-    [-6.9, 110.4],
-    [-7.2, 112.8],
-    [-8.2, 114.4],
-    [-8.7, 114.0],
-    [-7.8, 110.4],
-    [-7.0, 106.5],
-    [-6.0, 106.0],
-  ],
-  // Kalimantan (Borneo)
-  [
-    [7.0, 116.8],
-    [4.2, 117.9],
-    [1.0, 118.9],
-    [-1.3, 116.8],
-    [-3.4, 114.6],
-    [-3.0, 111.7],
-    [-0.1, 109.3],
-    [2.0, 109.6],
-    [4.9, 114.9],
-    [7.0, 116.8],
-  ],
-  // Sulawesi
-  [
-    [1.5, 125.2],
-    [0.5, 123.0],
-    [-1.5, 121.5],
-    [-5.1, 119.4],
-    [-5.5, 120.5],
-    [-4.0, 122.6],
-    [-1.0, 123.5],
-    [1.5, 125.2],
-  ],
-  // Papua / New Guinea
-  [
-    [-0.8, 131.2],
-    [-2.5, 140.7],
-    [-6.5, 147.8],
-    [-10.2, 150.5],
-    [-9.0, 143.0],
-    [-8.0, 138.0],
-    [-4.5, 134.0],
-    [-0.8, 131.2],
-  ],
-  // Sri Lanka
-  [
-    [9.8, 80.0],
-    [8.5, 81.2],
-    [6.0, 80.2],
-    [6.9, 79.8],
-    [9.8, 80.0],
-  ],
-  // UK & Ireland
-  [
-    [58.6, -5.0],
-    [57.5, -1.8],
-    [51.5, 1.4],
-    [50.1, -5.2],
-    [54.5, -5.9],
-    [58.6, -5.0],
-  ],
-  // Japan
-  [
-    [45.5, 141.9],
-    [40.0, 140.0],
-    [35.6, 140.8],
-    [31.2, 130.6],
-    [34.0, 131.0],
-    [38.0, 139.0],
-    [45.5, 141.9],
-  ],
-  // Eurasia (Western Europe: Rotterdam/Hamburg -> Mediterranean -> Middle East -> India -> SE Asia -> China -> Siberia)
-  [
-    [36.0, -9.0],
-    [43.3, -8.4],
-    [48.4, -4.5],
-    [51.0, 1.8],
-    [51.9, 4.1], // Rotterdam
-    [53.6, 10.0], // Hamburg
-    [57.7, 10.6],
-    [60.0, 5.0],
-    [70.0, 25.0],
-    [68.0, 40.0],
-    [72.0, 70.0],
-    [73.0, 120.0],
-    [66.0, 170.0],
-    [55.0, 160.0],
-    [43.0, 132.0],
-    [38.9, 121.6],
-    [31.2, 121.5], // Shanghai
-    [22.3, 114.2], // Hong Kong
-    [20.8, 106.7],
-    [10.8, 106.7],
-    [13.7, 100.7], // Bangkok
-    [1.3, 103.8], // Singapore / Malay Peninsula
-    [6.5, 100.1],
-    [16.8, 96.2],
-    [22.3, 91.8],
-    [21.5, 87.0],
-    [13.1, 80.3],
-    [8.1, 77.5], // Southern India
-    [19.0, 72.8], // Mumbai
-    [24.9, 67.0], // Karachi
-    [25.5, 57.0],
-    [29.9, 48.5],
-    [25.0, 55.1], // Dubai / Jebel Ali
-    [22.5, 59.5],
-    [12.8, 45.0], // Aden
-    [29.9, 32.5], // Suez
-    [32.0, 34.8],
-    [36.8, 36.2],
-    [41.0, 29.0],
-    [38.0, 23.7],
-    [40.8, 14.3],
-    [43.3, 5.4],
-    [36.0, -5.4],
-    [36.0, -9.0],
-  ],
-  // Africa (Tangier -> Suez / Port Said -> Horn of Africa -> Cape of Good Hope -> West Africa)
-  [
-    [35.8, -5.8],
-    [37.3, 9.8],
-    [31.3, 32.3], // Port Said
-    [11.8, 43.4],
-    [11.8, 51.3],
-    [-4.0, 39.7],
-    [-25.9, 32.6],
-    [-34.4, 18.5],
-    [-22.9, 14.5],
-    [-6.1, 12.4],
-    [4.0, 9.7],
-    [6.4, 3.4],
-    [5.3, -4.0],
-    [14.7, -17.4],
-    [28.0, -13.0],
-    [35.8, -5.8],
-  ],
-  // Australia
-  [
-    [-12.5, 130.8],
-    [-12.0, 142.5],
-    [-19.2, 146.8],
-    [-27.5, 153.0],
-    [-33.9, 151.2],
-    [-38.1, 144.9],
-    [-35.0, 138.5],
-    [-34.0, 115.0],
-    [-32.0, 115.8],
-    [-21.9, 114.1],
-    [-18.0, 122.2],
-    [-12.5, 130.8],
-  ],
-  // North America
-  [
-    [70.0, -160.0],
-    [70.0, -70.0],
-    [47.5, -52.7],
-    [40.7, -74.0],
-    [25.8, -80.2],
-    [19.2, -96.1],
-    [8.9, -79.5],
-    [16.8, -99.9],
-    [34.0, -118.2],
-    [49.3, -123.1],
-    [61.2, -149.9],
-    [70.0, -160.0],
-  ],
-  // South America
-  [
-    [10.5, -75.5],
-    [10.6, -66.9],
-    [-1.4, -48.5],
-    [-8.0, -34.9],
-    [-23.0, -43.2],
-    [-34.6, -58.4],
-    [-54.8, -68.3],
-    [-41.5, -73.0],
-    [-18.5, -70.3],
-    [-12.0, -77.0],
-    [-2.2, -79.9],
-    [10.5, -75.5],
-  ],
-];
-
 const DEG2RAD = Math.PI / 180;
+const RAD2DEG = 180 / Math.PI;
+const TWO_PI = Math.PI * 2;
+const MAX_MERCATOR_LAT = 85.05112878;
+
+/**
+ * Multi-Zoom OpenStreetMap Slippy Tile Cache (z = 2 .. 16)
+ * Uses official OpenStreetMap raster tiles: https://tile.openstreetmap.org/{z}/{x}/{y}.png
+ */
+interface CachedTile {
+  img: HTMLImageElement;
+  loaded: boolean;
+  error: boolean;
+  lastUsed: number;
+}
+
+const tileCache = new Map<string, CachedTile>();
+const tileListeners = new Set<() => void>();
+let activeRequests = 0;
+const MAX_CONCURRENT_REQUESTS = 18;
+const requestQueue: { key: string; z: number; x: number; y: number }[] = [];
+
+function notifyTileLoaded() {
+  tileListeners.forEach((cb) => cb());
+}
+
+function processTileQueue() {
+  while (activeRequests < MAX_CONCURRENT_REQUESTS && requestQueue.length > 0) {
+    const next = requestQueue.pop();
+    if (!next) break;
+    const existing = tileCache.get(next.key);
+    if (!existing || existing.loaded || existing.error) continue;
+
+    activeRequests += 1;
+    const { img } = existing;
+    img.onload = () => {
+      activeRequests = Math.max(0, activeRequests - 1);
+      existing.loaded = true;
+      existing.lastUsed = performance.now();
+      notifyTileLoaded();
+      processTileQueue();
+    };
+    img.onerror = () => {
+      activeRequests = Math.max(0, activeRequests - 1);
+      existing.error = true;
+      processTileQueue();
+    };
+    img.src = `https://tile.openstreetmap.org/${next.z}/${next.x}/${next.y}.png`;
+  }
+}
+
+function requestOsmTile(z: number, x: number, y: number): CachedTile {
+  const n = 1 << z;
+  const wrappedX = ((x % n) + n) % n;
+  const clampedY = Math.max(0, Math.min(n - 1, y));
+  const key = `${z}/${wrappedX}/${clampedY}`;
+
+  let entry = tileCache.get(key);
+  if (entry) {
+    entry.lastUsed = performance.now();
+    return entry;
+  }
+
+  // Prune old tiles if cache grows beyond 600 tiles
+  if (tileCache.size > 600) {
+    const entries = Array.from(tileCache.entries())
+      .filter(([k, v]) => !k.startsWith('2/') && !k.startsWith('3/') && v.loaded)
+      .sort((a, b) => a[1].lastUsed - b[1].lastUsed);
+    for (let i = 0; i < Math.min(120, entries.length); i += 1) {
+      tileCache.delete(entries[i][0]);
+    }
+  }
+
+  const img = new Image();
+  entry = {
+    img,
+    loaded: false,
+    error: false,
+    lastUsed: performance.now(),
+  };
+  tileCache.set(key, entry);
+
+  requestQueue.push({ key, z, x: wrappedX, y: clampedY });
+  // Keep queue bounded so current viewport tiles always load first (LIFO priority)
+  if (requestQueue.length > 64) {
+    requestQueue.splice(0, requestQueue.length - 64);
+  }
+  processTileQueue();
+  return entry;
+}
+
+// Preload base globe tiles (z = 2) once so the whole-earth 3D globe is ready immediately
+let basePreloaded = false;
+function preloadBaseGlobeTiles() {
+  if (basePreloaded || typeof window === 'undefined') return;
+  basePreloaded = true;
+  for (let y = 0; y < 4; y += 1) {
+    for (let x = 0; x < 4; x += 1) {
+      requestOsmTile(2, x, y);
+    }
+  }
+}
+
+/**
+ * Web Mercator tile coordinate helpers
+ */
+function lonToTileX(lon: number, z: number): number {
+  const n = 1 << z;
+  return Math.floor((((lon + 180) / 360) % 1 + 1) % 1 * n);
+}
+
+function latToTileY(lat: number, z: number): number {
+  const clamped = Math.max(-MAX_MERCATOR_LAT, Math.min(MAX_MERCATOR_LAT, lat));
+  const rad = clamped * DEG2RAD;
+  const n = 1 << z;
+  const merc = Math.log(Math.tan(Math.PI / 4 + rad / 2));
+  return Math.max(0, Math.min(n - 1, Math.floor((1 - merc / Math.PI) * 0.5 * n)));
+}
+
+function tileXToLon(x: number, z: number): number {
+  return (x / (1 << z)) * 360 - 180;
+}
+
+function tileYToLat(y: number, z: number): number {
+  const n = Math.PI - (TWO_PI * y) / (1 << z);
+  return RAD2DEG * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+}
 
 interface ProjectedPoint {
   x: number;
@@ -258,6 +175,87 @@ function project3D(
   };
 }
 
+/**
+ * Liang-Barsky 2D line segment clipper against viewport rectangle [minX, minY, maxX, maxY].
+ * Prevents Canvas 2D from rasterizing 100,000px off-screen dashed paths during deep 2500x street zoom.
+ */
+function clipSegmentToViewport(
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  minX: number,
+  minY: number,
+  maxX: number,
+  maxY: number,
+): [number, number, number, number] | null {
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  let t0 = 0;
+  let t1 = 1;
+
+  const p = [-dx, dx, -dy, dy];
+  const q = [x0 - minX, maxX - x0, y0 - minY, maxY - y0];
+
+  for (let i = 0; i < 4; i += 1) {
+    const pi = p[i];
+    const qi = q[i];
+    if (pi === 0) {
+      if (qi < 0) return null;
+    } else {
+      const r = qi / pi;
+      if (pi < 0) {
+        if (r > t1) return null;
+        if (r > t0) t0 = r;
+      } else {
+        if (r < t0) return null;
+        if (r < t1) t1 = r;
+      }
+    }
+  }
+
+  return [x0 + t0 * dx, y0 + t0 * dy, x0 + t1 * dx, y0 + t1 * dy];
+}
+
+/**
+ * Find the best available tile image in cache for (z, x, y), falling back to loaded parent/ancestor tiles
+ * so the 3D globe never shows blank holes while zooming in or panning.
+ */
+function resolveTileDrawable(
+  z: number,
+  x: number,
+  y: number,
+  allowNetworkFetch = true,
+): { img: HTMLImageElement; sx: number; sy: number; sw: number; sh: number } | null {
+  const n = 1 << z;
+  const wrappedX = ((x % n) + n) % n;
+  const clampedY = Math.max(0, Math.min(n - 1, y));
+  const exactKey = `${z}/${wrappedX}/${clampedY}`;
+  const exact = allowNetworkFetch
+    ? requestOsmTile(z, wrappedX, clampedY)
+    : tileCache.get(exactKey);
+  if (exact && exact.loaded && exact.img.complete && exact.img.naturalWidth > 0) {
+    return { img: exact.img, sx: 0, sy: 0, sw: 256, sh: 256 };
+  }
+
+  // Fallback up the quadtree to the nearest loaded ancestor tile
+  for (let ancZ = z - 1; ancZ >= 2; ancZ -= 1) {
+    const shift = z - ancZ;
+    const ancX = wrappedX >> shift;
+    const ancY = clampedY >> shift;
+    const ancKey = `${ancZ}/${ancX}/${ancY}`;
+    const anc = tileCache.get(ancKey) ?? (ancZ === 2 ? requestOsmTile(2, ancX, ancY) : undefined);
+    if (anc && anc.loaded && anc.img.complete && anc.img.naturalWidth > 0) {
+      const scale = 1 << shift;
+      const subW = 256 / scale;
+      const subX = (wrappedX - (ancX << shift)) * subW;
+      const subY = (clampedY - (ancY << shift)) * subW;
+      return { img: anc.img, sx: subX, sy: subY, sw: subW, sh: subW };
+    }
+  }
+  return null;
+}
+
 export const Globe3DCanvas: React.FC<{
   shipments: MapShipmentEntry[];
   focusId: number;
@@ -266,34 +264,35 @@ export const Globe3DCanvas: React.FC<{
 }> = ({ shipments, focusId, theme, onSelectShipment }) => {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const requestDrawRef = useRef<() => void>(() => {});
+  const hudBadgeRef = useRef<HTMLSpanElement | null>(null);
   const [autoSpin, setAutoSpin] = useState<boolean>(false);
-  const [zoomScale, setZoomScale] = useState<number>(1.08);
-  const [renderTick, setRenderTick] = useState<number>(0);
 
-  // Mutable camera rotation ref for 60fps drag & smooth damping without re-creating listeners
+  // Mutable camera state — updated at 60fps with ZERO React re-renders during drag/wheel
   const viewRef = useRef({
-    rotLat: 14,
-    rotLon: 72,
-    targetLat: 14,
-    targetLon: 72,
+    rotLat: 15,
+    rotLon: 65,
+    targetLat: 15,
+    targetLon: 65,
     zoom: 1.08,
     targetZoom: 1.08,
     dragging: false,
     dragStartX: 0,
     dragStartY: 0,
-    startLat: 14,
-    startLon: 72,
+    startLat: 15,
+    startLon: 65,
     movedDistance: 0,
     dashPhase: 0,
   });
 
-  // Hit targets populated on each draw for click-to-select shipment
+  // Hit targets populated on each draw for click-to-select shipment or click-to-zoom port
   const hitTargetsRef = useRef<
-    { id: number; x: number; y: number; r: number; label: string }[]
+    { id: number; x: number; y: number; r: number; lat?: number; lon?: number }[]
   >([]);
 
-  // Center globe on focused shipment corridor (or active fleet centroid) when focusId/shipments change
+  // Center globe on focused shipment corridor when focusId/shipments change
   useEffect(() => {
+    preloadBaseGlobeTiles();
     const target =
       focusId !== 0
         ? shipments.find((s) => s.id === focusId)
@@ -311,7 +310,7 @@ export const Globe3DCanvas: React.FC<{
       if (pts.length > 0) {
         const avgLat = pts.reduce((acc, p) => acc + p[0], 0) / pts.length;
         const avgLon = pts.reduce((acc, p) => acc + p[1], 0) / pts.length;
-        const clampedLat = Math.max(-50, Math.min(55, avgLat));
+        const clampedLat = Math.max(-65, Math.min(65, avgLat));
         viewRef.current.targetLat = clampedLat;
         viewRef.current.targetLon = avgLon;
         viewRef.current.rotLat = clampedLat;
@@ -319,30 +318,33 @@ export const Globe3DCanvas: React.FC<{
         const nextZoom = focusId !== 0 ? 1.18 : 1.08;
         viewRef.current.targetZoom = nextZoom;
         viewRef.current.zoom = nextZoom;
-        setZoomScale(nextZoom);
       }
-    } else {
-      viewRef.current.targetLat = 14;
-      viewRef.current.targetLon = 72;
-      viewRef.current.rotLat = 14;
-      viewRef.current.rotLon = 72;
-      viewRef.current.targetZoom = 1.08;
-      viewRef.current.zoom = 1.08;
-      setZoomScale(1.08);
     }
-    setRenderTick((t) => t + 1);
+    requestDrawRef.current();
   }, [focusId, shipments]);
 
   useEffect(() => {
     const wrapper = wrapperRef.current;
     const canvas = canvasRef.current;
     if (!wrapper || !canvas) return;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) return;
 
     let animId = 0;
+    let frameScheduled = false;
+
+    const scheduleFrame = () => {
+      if (frameScheduled) return;
+      frameScheduled = true;
+      animId = requestAnimationFrame(renderFrame);
+    };
+
+    requestDrawRef.current = scheduleFrame;
+    tileListeners.add(scheduleFrame);
 
     const renderFrame = () => {
+      frameScheduled = false;
+
       const rect = wrapper.getBoundingClientRect();
       const width = Math.max(280, Math.min(2400, Math.floor(rect.width || 640)));
       const height = Math.max(280, Math.min(1800, Math.floor(rect.height || 460)));
@@ -355,190 +357,292 @@ export const Globe3DCanvas: React.FC<{
         canvas.height = targetH;
       }
 
-      ctx.save();
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
       const v = viewRef.current;
-      let needsMoreFrames = false;
+      let keepAnimating = false;
 
       if (!v.dragging) {
         if (autoSpin) {
-          v.targetLon = ((v.targetLon + 0.22 + 180) % 360) - 180;
+          v.targetLon = ((v.targetLon + 0.22 / Math.max(1, Math.sqrt(v.zoom)) + 180) % 360) - 180;
           v.dashPhase = (v.dashPhase + 0.35) % 24;
-          needsMoreFrames = true;
+          keepAnimating = true;
         }
         const dLat = v.targetLat - v.rotLat;
         let dLon = v.targetLon - v.rotLon;
         if (dLon > 180) dLon -= 360;
         if (dLon < -180) dLon += 360;
 
-        if (Math.abs(dLat) > 0.04 || Math.abs(dLon) > 0.04) {
-          v.rotLat += dLat * 0.16;
-          v.rotLon += dLon * 0.16;
-          needsMoreFrames = true;
+        const angularEps = 0.015 / Math.max(1, v.zoom);
+        if (Math.abs(dLat) > angularEps || Math.abs(dLon) > angularEps) {
+          v.rotLat += dLat * 0.22;
+          v.rotLon = ((v.rotLon + dLon * 0.22 + 540) % 360) - 180;
+          keepAnimating = true;
         } else {
           v.rotLat = v.targetLat;
           v.rotLon = v.targetLon;
         }
-      } else {
-        needsMoreFrames = true;
       }
 
-      const dZoom = v.targetZoom - v.zoom;
-      if (Math.abs(dZoom) > 0.003) {
-        v.zoom += dZoom * 0.2;
-        needsMoreFrames = true;
+      // Smooth logarithmic zoom interpolation (supports 0.75x up to 2500x street level!)
+      const zoomRatio = v.targetZoom / v.zoom;
+      const isZoomSettled = Math.abs(zoomRatio - 1) < 0.14;
+      if (Math.abs(zoomRatio - 1) > 0.004) {
+        v.zoom *= Math.pow(zoomRatio, 0.34);
+        keepAnimating = true;
       } else {
         v.zoom = v.targetZoom;
+      }
+
+      // Select OpenStreetMap slippy tile zoom level z (from z = 2 up to z = 15 street/port level)
+      const osmZ = Math.max(2, Math.min(15, Math.round(Math.log2(Math.max(0.75, v.zoom)) + 2.55)));
+      const targetOsmZ = Math.max(
+        2,
+        Math.min(15, Math.round(Math.log2(Math.max(0.75, v.targetZoom)) + 2.55)),
+      );
+      if (hudBadgeRef.current) {
+        const zoomText =
+          v.zoom >= 10
+            ? `${Math.round(v.zoom)}x · OSM z${osmZ}`
+            : `${Math.round(v.zoom * 100)}% · OSM z${osmZ}`;
+        hudBadgeRef.current.textContent = `© OpenStreetMap · 3D Globe (${zoomText})`;
       }
 
       const isDark = theme === 'dark';
       const cx = width / 2;
       const cy = height / 2;
-      const baseRadius = Math.min(width, height) * 0.38 * v.zoom;
+      const baseRadius = Math.min(width, height) * 0.39 * v.zoom;
 
-      // 1. Background Canvas Fill (strictly matching #080B0C / #FFFFFF / #C6F432 system)
-      ctx.fillStyle = isDark ? '#060809' : '#E6ECEF';
+      ctx.save();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      // 1. Space / Map Backdrop
+      ctx.fillStyle = isDark ? '#060809' : '#DDE5EA';
       ctx.fillRect(0, 0, width, height);
 
-      // Subtle radial background halo behind the 3D globe
-      const haloGrad = ctx.createRadialGradient(
-        cx,
-        cy,
-        baseRadius * 0.75,
-        cx,
-        cy,
-        baseRadius * 1.25,
-      );
-      if (isDark) {
-        haloGrad.addColorStop(0, 'rgba(198, 244, 50, 0.12)');
-        haloGrad.addColorStop(1, 'rgba(8, 11, 12, 0)');
-      } else {
-        haloGrad.addColorStop(0, 'rgba(8, 11, 12, 0.10)');
-        haloGrad.addColorStop(1, 'rgba(230, 236, 239, 0)');
-      }
-      ctx.fillStyle = haloGrad;
-      ctx.beginPath();
-      ctx.arc(cx, cy, baseRadius * 1.25, 0, Math.PI * 2);
-      ctx.fill();
-
-      // 2. 3D Ocean Sphere with Spherical Specular Lighting
-      const sphereGrad = ctx.createRadialGradient(
-        cx - baseRadius * 0.3,
-        cy - baseRadius * 0.3,
-        baseRadius * 0.08,
-        cx,
-        cy,
-        baseRadius,
-      );
-      if (isDark) {
-        sphereGrad.addColorStop(0, '#182227');
-        sphereGrad.addColorStop(0.65, '#0D1316');
-        sphereGrad.addColorStop(1, '#080B0C');
-      } else {
-        sphereGrad.addColorStop(0, '#FFFFFF');
-        sphereGrad.addColorStop(0.7, '#EEF3F6');
-        sphereGrad.addColorStop(1, '#D5DFE5');
+      // Radial halo when the globe rim is visible inside viewport
+      const maxScreenHalfDiag = Math.hypot(cx, cy);
+      const isRimVisible = baseRadius < maxScreenHalfDiag * 1.05;
+      if (isRimVisible) {
+        const haloGrad = ctx.createRadialGradient(
+          cx,
+          cy,
+          baseRadius * 0.85,
+          cx,
+          cy,
+          baseRadius * 1.2,
+        );
+        if (isDark) {
+          haloGrad.addColorStop(0, 'rgba(198, 244, 50, 0.14)');
+          haloGrad.addColorStop(1, 'rgba(8, 11, 12, 0)');
+        } else {
+          haloGrad.addColorStop(0, 'rgba(8, 11, 12, 0.14)');
+          haloGrad.addColorStop(1, 'rgba(221, 229, 234, 0)');
+        }
+        ctx.fillStyle = haloGrad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, baseRadius * 1.2, 0, TWO_PI);
+        ctx.fill();
       }
 
-      ctx.beginPath();
-      ctx.arc(cx, cy, baseRadius, 0, Math.PI * 2);
-      ctx.fillStyle = sphereGrad;
-      ctx.fill();
-
-      // Clip to Globe Sphere for Graticules & Continents
+      // 2. Clip to 3D Globe Sphere (only when sphere rim is inside viewport) & Render GPU-Accelerated OpenStreetMap Slippy Tiles
       ctx.save();
-      ctx.beginPath();
-      ctx.arc(cx, cy, baseRadius, 0, Math.PI * 2);
-      ctx.clip();
-
-      // 3. Spherical Graticule Grid (Meridians & Parallels every 15°)
-      ctx.strokeStyle = isDark ? 'rgba(255, 255, 255, 0.07)' : 'rgba(8, 11, 12, 0.08)';
-      ctx.lineWidth = 0.8;
-
-      for (let lon = -180; lon < 180; lon += 15) {
+      if (isRimVisible) {
         ctx.beginPath();
-        let started = false;
-        for (let lat = -75; lat <= 75; lat += 5) {
-          const p = project3D(lat, lon, v.rotLat, v.rotLon, cx, cy, baseRadius);
-          if (p.z > 0) {
-            if (!started) {
-              ctx.moveTo(p.x, p.y);
-              started = true;
-            } else {
-              ctx.lineTo(p.x, p.y);
-            }
-          } else {
-            started = false;
-          }
-        }
-        ctx.stroke();
+        ctx.arc(cx, cy, baseRadius, 0, TWO_PI);
+        ctx.clip();
       }
 
-      for (let lat = -60; lat <= 60; lat += 15) {
-        ctx.beginPath();
-        let started = false;
-        for (let lon = -180; lon <= 180; lon += 5) {
-          const p = project3D(lat, lon, v.rotLat, v.rotLon, cx, cy, baseRadius);
-          if (p.z > 0) {
-            if (!started) {
-              ctx.moveTo(p.x, p.y);
-              started = true;
-            } else {
-              ctx.lineTo(p.x, p.y);
-            }
-          } else {
-            started = false;
-          }
-        }
-        ctx.lineWidth = lat === 0 ? 1.2 : 0.8;
-        ctx.strokeStyle =
-          lat === 0
-            ? isDark
-              ? 'rgba(198, 244, 50, 0.22)'
-              : 'rgba(8, 11, 12, 0.16)'
-            : isDark
-            ? 'rgba(255, 255, 255, 0.07)'
-            : 'rgba(8, 11, 12, 0.08)';
-        ctx.stroke();
+      // Ocean base fill inside sphere
+      ctx.fillStyle = isDark ? '#0D151A' : '#AAD3DF';
+      ctx.fillRect(0, 0, width, height);
+
+      // Apply Dark Mode filter to OpenStreetMap tiles (matching 2D OpenStreetMap dark mode)
+      if (isDark) {
+        ctx.filter = 'invert(0.86) hue-rotate(180deg) brightness(1.18) contrast(1.22) saturate(1.12)';
       }
 
-      // 4. World Continental & Indonesian Archipelago Polygons
-      WORLD_LAND_POLYGONS.forEach((poly) => {
-        ctx.beginPath();
-        let visibleCount = 0;
-        poly.forEach(([lat, lon], idx) => {
-          const p = project3D(lat, lon, v.rotLat, v.rotLon, cx, cy, baseRadius);
-          if (p.z > -0.15) visibleCount += 1;
-          if (idx === 0) ctx.moveTo(p.x, p.y);
-          else ctx.lineTo(p.x, p.y);
-        });
-        ctx.closePath();
-        if (visibleCount >= 2) {
-          ctx.fillStyle = isDark ? 'rgba(198, 244, 50, 0.11)' : '#DCE4E8';
-          ctx.fill();
-          ctx.strokeStyle = isDark ? 'rgba(198, 244, 50, 0.35)' : 'rgba(8, 11, 12, 0.28)';
-          ctx.lineWidth = 1.0;
+      // Determine visible geographic bounding box [minLat, maxLat], [minLon, maxLon]
+      const sinAngularRadius = Math.min(1, (maxScreenHalfDiag / baseRadius) * 1.08);
+      const angularRadiusDeg = Math.min(89.5, Math.asin(sinAngularRadius) * RAD2DEG * 1.15);
+
+      const minLat = Math.max(-MAX_MERCATOR_LAT, v.rotLat - angularRadiusDeg);
+      const maxLat = Math.min(MAX_MERCATOR_LAT, v.rotLat + angularRadiusDeg);
+
+      const nTiles = 1 << osmZ;
+      const yMin = latToTileY(maxLat, osmZ);
+      const yMax = latToTileY(minLat, osmZ);
+
+      let xMin = 0;
+      let xMax = nTiles - 1;
+      // When zoomed in enough that the pole is not inside the view, restrict X tile range to visible longitudes
+      if (Math.abs(v.rotLat) + angularRadiusDeg < 82) {
+        const cosLatFactor = Math.max(0.15, Math.cos(v.rotLat * DEG2RAD));
+        const lonSpan = Math.min(179, (angularRadiusDeg / cosLatFactor) * 1.2);
+        xMin = Math.floor(((v.rotLon - lonSpan + 180) / 360) * nTiles);
+        xMax = Math.floor(((v.rotLon + lonSpan + 180) / 360) * nTiles);
+        if (xMax - xMin >= nTiles) {
+          xMin = 0;
+          xMax = nTiles - 1;
+        }
+      }
+
+      // Subdivide low-zoom tiles (z=2..4) into a small mesh so spherical curvature is smooth;
+      // at z >= 5 each tile spans < 11 degrees and is locally planar on the tangent sphere
+      const subdiv = osmZ <= 2 ? 4 : osmZ === 3 ? 3 : osmZ === 4 ? 2 : 1;
+      const invSubdiv = 1 / subdiv;
+      const allowTileFetch = isZoomSettled || osmZ === targetOsmZ || osmZ <= 3;
+
+      for (let ty = yMin; ty <= yMax; ty += 1) {
+        for (let tx = xMin; tx <= xMax; tx += 1) {
+          const wrappedTx = ((tx % nTiles) + nTiles) % nTiles;
+          const drawable = resolveTileDrawable(osmZ, wrappedTx, ty, allowTileFetch);
+          if (!drawable) continue;
+
+          for (let syIdx = 0; syIdx < subdiv; syIdx += 1) {
+            const latN = tileYToLat(ty + syIdx * invSubdiv, osmZ);
+            const latS = tileYToLat(ty + (syIdx + 1) * invSubdiv, osmZ);
+
+            for (let sxIdx = 0; sxIdx < subdiv; sxIdx += 1) {
+              const lonW = tileXToLon(wrappedTx + sxIdx * invSubdiv, osmZ);
+              const lonE = tileXToLon(wrappedTx + (sxIdx + 1) * invSubdiv, osmZ);
+
+              const pNW = project3D(latN, lonW, v.rotLat, v.rotLon, cx, cy, baseRadius);
+              const pNE = project3D(latN, lonE, v.rotLat, v.rotLon, cx, cy, baseRadius);
+              const pSW = project3D(latS, lonW, v.rotLat, v.rotLon, cx, cy, baseRadius);
+              const pSE = project3D(latS, lonE, v.rotLat, v.rotLon, cx, cy, baseRadius);
+
+              // Skip back-facing patches
+              if (pNW.z < -0.05 && pNE.z < -0.05 && pSW.z < -0.05 && pSE.z < -0.05) {
+                continue;
+              }
+
+              // Frustum cull patches completely outside screen bounds
+              const minX = Math.min(pNW.x, pNE.x, pSW.x, pSE.x);
+              const maxX = Math.max(pNW.x, pNE.x, pSW.x, pSE.x);
+              const minY = Math.min(pNW.y, pNE.y, pSW.y, pSE.y);
+              const maxY = Math.max(pNW.y, pNE.y, pSW.y, pSE.y);
+              if (maxX < -32 || minX > width + 32 || maxY < -32 || minY > height + 32) {
+                continue;
+              }
+
+              const patchSx = drawable.sx + sxIdx * invSubdiv * drawable.sw;
+              const patchSy = drawable.sy + syIdx * invSubdiv * drawable.sh;
+              const patchSw = drawable.sw * invSubdiv;
+              const patchSh = drawable.sh * invSubdiv;
+
+              // Average the top/bottom and left/right vectors for a seamless spherical quad fit
+              const ux = (pNE.x - pNW.x + (pSE.x - pSW.x)) * 0.5;
+              const uy = (pNE.y - pNW.y + (pSE.y - pSW.y)) * 0.5;
+              const vx = (pSW.x - pNW.x + (pSE.x - pNE.x)) * 0.5;
+              const vy = (pSW.y - pNW.y + (pSE.y - pNE.y)) * 0.5;
+
+              const ox = (pNW.x + pSE.x - ux - vx) * 0.5;
+              const oy = (pNW.y + pSE.y - uy - vy) * 0.5;
+
+              ctx.setTransform(
+                dpr * (ux / patchSw),
+                dpr * (uy / patchSw),
+                dpr * (vx / patchSh),
+                dpr * (vy / patchSh),
+                dpr * ox,
+                dpr * oy,
+              );
+
+              // Slight 1.5% overlap prevents 1px sub-pixel seams between adjacent spherical patches
+              const bleed = subdiv > 1 ? 1.022 : 1.006;
+              ctx.drawImage(
+                drawable.img,
+                patchSx,
+                patchSy,
+                patchSw,
+                patchSh,
+                0,
+                0,
+                patchSw * bleed,
+                patchSh * bleed,
+              );
+            }
+          }
+        }
+      }
+
+      // Reset transform & filter for 3D spherical lighting overlay
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.filter = 'none';
+
+      // 3. 3D Spherical Specular & Limb-Darkening Atmosphere Overlay (capped radius for GPU safety)
+      const gradRadius = Math.min(baseRadius, maxScreenHalfDiag * 1.35);
+      const shadeStrength = Math.max(0.14, Math.min(1, 3.2 / Math.sqrt(v.zoom)));
+      const shadeGrad = ctx.createRadialGradient(
+        cx - gradRadius * 0.25,
+        cy - gradRadius * 0.25,
+        gradRadius * 0.1,
+        cx,
+        cy,
+        gradRadius,
+      );
+      if (isDark) {
+        shadeGrad.addColorStop(0, 'rgba(255, 255, 255, 0.02)');
+        shadeGrad.addColorStop(0.72, 'rgba(8, 11, 12, 0.05)');
+        shadeGrad.addColorStop(1, `rgba(4, 6, 7, ${(0.55 * shadeStrength).toFixed(2)})`);
+      } else {
+        shadeGrad.addColorStop(0, 'rgba(255, 255, 255, 0.06)');
+        shadeGrad.addColorStop(0.75, 'rgba(8, 11, 12, 0.02)');
+        shadeGrad.addColorStop(1, `rgba(8, 11, 12, ${(0.26 * shadeStrength).toFixed(2)})`);
+      }
+      ctx.fillStyle = shadeGrad;
+      ctx.fillRect(0, 0, width, height);
+
+      // Subtle Spherical Graticule Grid (only shown at global/regional zoom z <= 6)
+      if (osmZ <= 6) {
+        ctx.strokeStyle = isDark ? 'rgba(198, 244, 50, 0.08)' : 'rgba(8, 11, 12, 0.06)';
+        ctx.lineWidth = 0.65;
+        for (let lon = -180; lon < 180; lon += 30) {
+          ctx.beginPath();
+          let started = false;
+          for (let lat = -75; lat <= 75; lat += 6) {
+            const p = project3D(lat, lon, v.rotLat, v.rotLon, cx, cy, baseRadius);
+            if (p.z > 0) {
+              if (!started) {
+                ctx.moveTo(p.x, p.y);
+                started = true;
+              } else {
+                ctx.lineTo(p.x, p.y);
+              }
+            } else {
+              started = false;
+            }
+          }
           ctx.stroke();
         }
-      });
+      }
 
-      ctx.restore(); // End sphere clip so elevated 3D arcs & labels can rise above the rim
+      ctx.restore(); // End sphere clip
 
-      // Globe Rim Ring Border
-      ctx.beginPath();
-      ctx.arc(cx, cy, baseRadius, 0, Math.PI * 2);
-      ctx.strokeStyle = isDark ? 'rgba(198, 244, 50, 0.45)' : '#080B0C';
-      ctx.lineWidth = isDark ? 1.5 : 1.75;
-      ctx.stroke();
+      // 4. Crisp Globe Rim Border
+      if (isRimVisible) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, baseRadius, 0, TWO_PI);
+        ctx.strokeStyle = isDark ? 'rgba(198, 244, 50, 0.55)' : '#080B0C';
+        ctx.lineWidth = 1.75;
+        ctx.stroke();
+      }
 
       // 5. Render Multi-Leg 3D Corridor Trajectories (Origin ━━▶ Transit Stops ━━▶ Destination)
-      const newHitTargets: { id: number; x: number; y: number; r: number; label: string }[] = [];
+      const newHitTargets: {
+        id: number;
+        x: number;
+        y: number;
+        r: number;
+        lat?: number;
+        lon?: number;
+      }[] = [];
 
       const isNearCoord = (a: [number, number], b: [number, number], eps = 0.02) =>
         Math.abs(a[0] - b[0]) < eps && Math.abs(a[1] - b[1]) < eps;
 
-      // Draw non-focused shipments first, then focused shipment on top
+      // Scale 3D arc elevation smoothly down as the user zooms in close to street level
+      const archFactor = Math.min(1, 2.2 / Math.pow(v.zoom, 0.65));
+
       const sortedShipments = [...shipments].sort((a, b) => {
         const aFocus = a.id === focusId ? 1 : 0;
         const bFocus = b.id === focusId ? 1 : 0;
@@ -605,34 +709,78 @@ export const Globe3DCanvas: React.FC<{
           lineWidth: number,
           alpha: number,
         ) => {
-          const steps = 36;
+          const steps = 40;
           const pts = greatCirclePoints(start, end, steps);
+          const vpPad = 80;
 
-          // 5a. Surface shadow line on globe (altitude = 1.0)
-          if (isFocused) {
+          const strokeClippedPolyline = (projectedPts: ProjectedPoint[]) => {
+            let hasSubpath = false;
+            let lastX = 0;
+            let lastY = 0;
+            for (let i = 0; i < projectedPts.length - 1; i += 1) {
+              const a = projectedPts[i];
+              const b = projectedPts[i + 1];
+              if (a.z <= -0.02 || b.z <= -0.02) {
+                hasSubpath = false;
+                continue;
+              }
+              const clipped = clipSegmentToViewport(
+                a.x,
+                a.y,
+                b.x,
+                b.y,
+                -vpPad,
+                -vpPad,
+                width + vpPad,
+                height + vpPad,
+              );
+              if (!clipped) {
+                hasSubpath = false;
+                continue;
+              }
+              const [cx0, cy0, cx1, cy1] = clipped;
+              if (!hasSubpath || Math.hypot(cx0 - lastX, cy0 - lastY) > 1.5) {
+                ctx.moveTo(cx0, cy0);
+                hasSubpath = true;
+              }
+              ctx.lineTo(cx1, cy1);
+              lastX = cx1;
+              lastY = cy1;
+            }
+          };
+
+          // Surface shadow line on OpenStreetMap globe (altitude = 1.0)
+          if (isFocused && archFactor > 0.15) {
+            const shadowPts = pts.map(([lat, lon]) =>
+              project3D(lat, lon, v.rotLat, v.rotLon, cx, cy, baseRadius, 1.0),
+            );
             ctx.save();
             ctx.beginPath();
-            let startedShadow = false;
-            pts.forEach(([lat, lon]) => {
-              const p = project3D(lat, lon, v.rotLat, v.rotLon, cx, cy, baseRadius, 1.0);
-              if (p.z > 0) {
-                if (!startedShadow) {
-                  ctx.moveTo(p.x, p.y);
-                  startedShadow = true;
-                } else {
-                  ctx.lineTo(p.x, p.y);
-                }
-              } else {
-                startedShadow = false;
-              }
-            });
-            ctx.strokeStyle = isDark ? 'rgba(0,0,0,0.45)' : 'rgba(8,11,12,0.14)';
-            ctx.lineWidth = lineWidth;
+            strokeClippedPolyline(shadowPts);
+            ctx.strokeStyle = isDark ? 'rgba(0,0,0,0.55)' : 'rgba(8,11,12,0.22)';
+            ctx.lineWidth = lineWidth + 0.5;
             ctx.stroke();
             ctx.restore();
           }
 
-          // 5b. Elevated 3D Great-Circle Arc (rises up to +6.5% radius at midpoint)
+          // Elevated 3D Great-Circle Arc
+          const arcPts = pts.map(([lat, lon], idx) => {
+            const t = idx / steps;
+            const archBoost =
+              (isFocused ? Math.sin(t * Math.PI) * 0.05 : Math.sin(t * Math.PI) * 0.022) *
+              archFactor;
+            return project3D(
+              lat,
+              lon,
+              v.rotLat,
+              v.rotLon,
+              cx,
+              cy,
+              baseRadius,
+              1.0 + archBoost,
+            );
+          });
+
           ctx.save();
           ctx.globalAlpha = alpha;
           ctx.strokeStyle = color;
@@ -644,31 +792,7 @@ export const Globe3DCanvas: React.FC<{
           }
 
           ctx.beginPath();
-          let started = false;
-          pts.forEach(([lat, lon], idx) => {
-            const t = idx / steps;
-            const archBoost = isFocused ? Math.sin(t * Math.PI) * 0.055 : Math.sin(t * Math.PI) * 0.025;
-            const p = project3D(
-              lat,
-              lon,
-              v.rotLat,
-              v.rotLon,
-              cx,
-              cy,
-              baseRadius,
-              1.0 + archBoost,
-            );
-            if (p.z > -0.02) {
-              if (!started) {
-                ctx.moveTo(p.x, p.y);
-                started = true;
-              } else {
-                ctx.lineTo(p.x, p.y);
-              }
-            } else {
-              started = false;
-            }
-          });
+          strokeClippedPolyline(arcPts);
           ctx.stroke();
           ctx.restore();
         };
@@ -680,9 +804,9 @@ export const Globe3DCanvas: React.FC<{
               allPts[i],
               allPts[i + 1],
               false,
-              isFocused ? primaryColor : isDark ? '#525E64' : '#64748B',
-              isFocused ? 3.0 : 1.5,
-              isDimmed ? 0.25 : 0.95,
+              isFocused ? primaryColor : isDark ? '#525E64' : '#475569',
+              isFocused ? 3.2 : 1.5,
+              isDimmed ? 0.3 : 0.96,
             );
           }
         } else if (hasMovedFromOrigin) {
@@ -691,9 +815,9 @@ export const Globe3DCanvas: React.FC<{
               orderedWaypoints[i],
               orderedWaypoints[i + 1],
               false,
-              isFocused ? primaryColor : isDark ? '#525E64' : '#64748B',
-              isFocused ? 3.2 : 1.6,
-              isDimmed ? 0.28 : 0.98,
+              isFocused ? primaryColor : isDark ? '#525E64' : '#475569',
+              isFocused ? 3.4 : 1.6,
+              isDimmed ? 0.32 : 0.98,
             );
           }
           const latestStop = orderedWaypoints[orderedWaypoints.length - 1];
@@ -701,18 +825,18 @@ export const Globe3DCanvas: React.FC<{
             latestStop,
             destCoord,
             true,
-            isFocused ? (isDark ? '#D0D8DC' : '#3D4850') : isDark ? '#525E64' : '#64748B',
-            isFocused ? 2.2 : 1.3,
-            isDimmed ? 0.22 : 0.88,
+            isFocused ? (isDark ? '#E2E8F0' : '#1E293B') : isDark ? '#525E64' : '#475569',
+            isFocused ? 2.4 : 1.3,
+            isDimmed ? 0.28 : 0.9,
           );
         } else {
           drawElevatedArcSegment(
             originCoord,
             destCoord,
             true,
-            isFocused ? primaryColor : isDark ? '#525E64' : '#64748B',
-            isFocused ? 2.6 : 1.4,
-            isDimmed ? 0.25 : isFocused ? 0.92 : 0.55,
+            isFocused ? primaryColor : isDark ? '#525E64' : '#475569',
+            isFocused ? 2.8 : 1.4,
+            isDimmed ? 0.28 : isFocused ? 0.94 : 0.58,
           );
         }
 
@@ -727,11 +851,12 @@ export const Globe3DCanvas: React.FC<{
         ) => {
           const p = project3D(coord[0], coord[1], v.rotLat, v.rotLon, cx, cy, baseRadius, 1.0);
           if (p.z <= 0) return null;
+          if (p.x < -60 || p.x > width + 60 || p.y < -60 || p.y > height + 60) return null;
 
           ctx.save();
-          ctx.globalAlpha = isDimmed ? 0.35 : 1;
+          ctx.globalAlpha = isDimmed ? 0.38 : 1;
           ctx.beginPath();
-          ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+          ctx.arc(p.x, p.y, radius, 0, TWO_PI);
           ctx.fillStyle = fill;
           ctx.fill();
           ctx.lineWidth = 2;
@@ -739,7 +864,7 @@ export const Globe3DCanvas: React.FC<{
           ctx.stroke();
 
           if (badgeText && isFocused) {
-            ctx.font = '700 10px "JetBrains Mono", monospace';
+            ctx.font = '700 10px "IBM Plex Mono", monospace';
             const textW = ctx.measureText(badgeText).width;
             const padX = 6;
             const boxW = textW + padX * 2;
@@ -748,7 +873,7 @@ export const Globe3DCanvas: React.FC<{
             const boxY = p.y - radius - boxH - 5;
 
             ctx.fillStyle =
-              badgeTone === 'volt' ? '#C6F432' : isDark ? '#101518' : '#FFFFFF';
+              badgeTone === 'volt' ? '#C6F432' : isDark ? '#0D1214' : '#FFFFFF';
             ctx.strokeStyle = '#080B0C';
             ctx.lineWidth = 1.25;
             ctx.beginPath();
@@ -764,6 +889,14 @@ export const Globe3DCanvas: React.FC<{
           }
 
           ctx.restore();
+          newHitTargets.push({
+            id: shipment.id,
+            x: p.x,
+            y: p.y,
+            r: 14,
+            lat: coord[0],
+            lon: coord[1],
+          });
           return p;
         };
 
@@ -811,13 +944,13 @@ export const Globe3DCanvas: React.FC<{
             cx,
             cy,
             baseRadius,
-            1.02,
+            1 + 0.018 * archFactor,
           );
-          if (curP.z > 0) {
+          if (curP.z > 0 && curP.x >= -40 && curP.x <= width + 40 && curP.y >= -40 && curP.y <= height + 40) {
             ctx.save();
             ctx.globalAlpha = isDimmed ? 0.4 : 1;
             ctx.beginPath();
-            ctx.arc(curP.x, curP.y, isFocused ? 8 : 6, 0, Math.PI * 2);
+            ctx.arc(curP.x, curP.y, isFocused ? 8 : 6, 0, TWO_PI);
             ctx.fillStyle = isFocused ? '#C6F432' : '#080B0C';
             ctx.fill();
             ctx.lineWidth = 2;
@@ -828,9 +961,8 @@ export const Globe3DCanvas: React.FC<{
               : '#C6F432';
             ctx.stroke();
 
-            // Inner core dot
             ctx.beginPath();
-            ctx.arc(curP.x, curP.y, 2.5, 0, Math.PI * 2);
+            ctx.arc(curP.x, curP.y, 2.5, 0, TWO_PI);
             ctx.fillStyle = isFocused ? '#080B0C' : '#C6F432';
             ctx.fill();
             ctx.restore();
@@ -839,8 +971,9 @@ export const Globe3DCanvas: React.FC<{
               id: shipment.id,
               x: curP.x,
               y: curP.y,
-              r: 14,
-              label: shipment.shipment_number,
+              r: 16,
+              lat: shipment.current_position.latitude,
+              lon: shipment.current_position.longitude,
             });
           }
         }
@@ -849,22 +982,35 @@ export const Globe3DCanvas: React.FC<{
       hitTargetsRef.current = newHitTargets;
       ctx.restore();
 
-      if (needsMoreFrames) {
-        animId = requestAnimationFrame(renderFrame);
+      if (keepAnimating) {
+        scheduleFrame();
       }
     };
 
-    renderFrame();
+    scheduleFrame();
 
-    const onResize = () => renderFrame();
-    window.addEventListener('resize', onResize);
+    const ro = new ResizeObserver(() => scheduleFrame());
+    ro.observe(wrapper);
+
+    // Non-passive wheel listener for smooth logarithmic zoom up to 2500x (street/port level)
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const v = viewRef.current;
+      const factor = Math.exp(-e.deltaY * 0.0022);
+      v.targetZoom = Math.max(0.75, Math.min(2500, v.targetZoom * factor));
+      scheduleFrame();
+    };
+    canvas.addEventListener('wheel', onWheel, { passive: false });
+
     return () => {
       cancelAnimationFrame(animId);
-      window.removeEventListener('resize', onResize);
+      ro.disconnect();
+      tileListeners.delete(scheduleFrame);
+      canvas.removeEventListener('wheel', onWheel);
     };
-  }, [shipments, focusId, theme, autoSpin, zoomScale, renderTick]);
+  }, [shipments, focusId, theme, autoSpin]);
 
-  // Pointer drag + wheel zoom + click hit-testing
+  // Pointer drag + double-click zoom + click hit-testing (ZERO React state updates during drag!)
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const v = viewRef.current;
     v.dragging = true;
@@ -874,7 +1020,7 @@ export const Globe3DCanvas: React.FC<{
     v.startLon = v.rotLon;
     v.movedDistance = 0;
     e.currentTarget.setPointerCapture(e.pointerId);
-    setRenderTick((t) => t + 1);
+    requestDrawRef.current();
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -884,12 +1030,14 @@ export const Globe3DCanvas: React.FC<{
     const dy = e.clientY - v.dragStartY;
     v.movedDistance = Math.hypot(dx, dy);
 
-    const sensitivity = 0.28 / v.zoom;
-    v.rotLon = ((v.startLon - dx * sensitivity + 540) % 360) - 180;
-    v.rotLat = Math.max(-70, Math.min(70, v.startLat + dy * sensitivity));
+    // Scale drag sensitivity smoothly with current zoom so street-level panning is 1:1 with cursor
+    const sensitivity = 0.24 / v.zoom;
+    const cosLat = Math.max(0.2, Math.cos(v.rotLat * DEG2RAD));
+    v.rotLon = ((v.startLon - (dx * sensitivity) / cosLat + 540) % 360) - 180;
+    v.rotLat = Math.max(-82, Math.min(82, v.startLat + dy * sensitivity));
     v.targetLon = v.rotLon;
     v.targetLat = v.rotLat;
-    setRenderTick((t) => t + 1);
+    requestDrawRef.current();
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -898,8 +1046,7 @@ export const Globe3DCanvas: React.FC<{
     v.dragging = false;
     e.currentTarget.releasePointerCapture(e.pointerId);
 
-    // If user clicked without dragging, check if they clicked a shipment marker
-    if (v.movedDistance < 6 && onSelectShipment && canvasRef.current) {
+    if (v.movedDistance < 6 && canvasRef.current) {
       const rect = canvasRef.current.getBoundingClientRect();
       const clickX = e.clientX - rect.left;
       const clickY = e.clientY - rect.top;
@@ -907,20 +1054,35 @@ export const Globe3DCanvas: React.FC<{
         (t) => Math.hypot(t.x - clickX, t.y - clickY) <= t.r,
       );
       if (hit) {
-        onSelectShipment(hit.id);
+        if (onSelectShipment) {
+          onSelectShipment(hit.id);
+        }
+        if (hit.lat !== undefined && hit.lon !== undefined) {
+          v.targetLat = hit.lat;
+          v.targetLon = hit.lon;
+        }
       }
     }
-    setRenderTick((t) => t + 1);
+    requestDrawRef.current();
   };
 
-  const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
+  const handleDoubleClick = () => {
     const v = viewRef.current;
-    const nextZoom = Math.max(0.75, Math.min(2.2, v.targetZoom - e.deltaY * 0.0012));
-    v.targetZoom = nextZoom;
-    v.zoom = nextZoom;
-    setZoomScale(Number(nextZoom.toFixed(2)));
+    v.targetZoom = Math.min(2500, v.targetZoom * 2.4);
+    requestDrawRef.current();
   };
+
+  const zoomToPoint = (lat: number, lon: number, targetZoom: number) => {
+    const v = viewRef.current;
+    setAutoSpin(false);
+    v.targetLat = lat;
+    v.targetLon = lon;
+    v.targetZoom = targetZoom;
+    requestDrawRef.current();
+  };
+
+  const focusedShipment =
+    focusId !== 0 ? shipments.find((s) => s.id === focusId) : shipments[0];
 
   return (
     <div
@@ -934,13 +1096,77 @@ export const Globe3DCanvas: React.FC<{
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        onWheel={handleWheel}
+        onDoubleClick={handleDoubleClick}
         className="absolute inset-0 block h-full w-full cursor-grab active:cursor-grabbing"
       />
 
-      {/* Bottom-Right 3D Globe Controls (Auto-Spin, Reset Corridor, Zoom In/Out) */}
-      <div className="absolute bottom-4 right-3 z-[450] flex flex-col items-end gap-2 sm:right-4">
-        <div className="flex items-center gap-1.5 rounded-md border border-line-strong bg-overlay p-1 shadow-md">
+      {/* Bottom-Left 3D Globe Controls (Quick Port Zoom, Auto-Spin, Reset, Deep Zoom +/-, OSM Attribution) */}
+      <div className="absolute bottom-3 left-3 z-[450] flex flex-col items-start gap-2">
+        <div className="flex flex-col overflow-hidden rounded-md border border-line-strong bg-overlay shadow-md">
+          <button
+            type="button"
+            aria-label="Zoom in 3D globe"
+            onClick={() => {
+              const v = viewRef.current;
+              v.targetZoom = Math.min(2500, v.targetZoom * 1.85);
+              requestDrawRef.current();
+            }}
+            className="flex size-8 items-center justify-center border-b border-line text-ink hover:bg-surface cursor-pointer"
+          >
+            <Plus className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            aria-label="Zoom out 3D globe"
+            onClick={() => {
+              const v = viewRef.current;
+              v.targetZoom = Math.max(0.75, v.targetZoom / 1.85);
+              requestDrawRef.current();
+            }}
+            className="flex size-8 items-center justify-center text-ink hover:bg-surface cursor-pointer"
+          >
+            <Minus className="size-3.5" />
+          </button>
+        </div>
+
+        {/* Quick Deep-Zoom Presets (Globe -> Origin Port -> Current/Transit -> Dest Port) */}
+        <div className="flex flex-wrap items-center gap-1 rounded-md border border-line-strong bg-overlay p-1 shadow-md">
+          {focusedShipment?.origin && (
+            <button
+              type="button"
+              onClick={() =>
+                zoomToPoint(
+                  focusedShipment.origin!.latitude,
+                  focusedShipment.origin!.longitude,
+                  180,
+                )
+              }
+              title={`Deep zoom 3D globe to Origin (${focusedShipment.origin.location_name})`}
+              className="inline-flex h-7 items-center gap-1 rounded bg-surface px-2 font-mono text-[10px] font-semibold text-ink hover:bg-raised cursor-pointer"
+            >
+              <Crosshair className="size-3 text-ink-2" />
+              <span>{focusedShipment.origin.code || 'Origin'}</span>
+            </button>
+          )}
+
+          {focusedShipment?.current_position && (
+            <button
+              type="button"
+              onClick={() =>
+                zoomToPoint(
+                  focusedShipment.current_position!.latitude,
+                  focusedShipment.current_position!.longitude,
+                  260,
+                )
+              }
+              title={`Deep zoom 3D globe to Current Checkpoint (${focusedShipment.current_position.location_name})`}
+              className="inline-flex h-7 items-center gap-1 rounded border border-[#080B0C] bg-[#C6F432] px-2 font-mono text-[10px] font-bold text-[#080B0C] cursor-pointer"
+            >
+              <Crosshair className="size-3" />
+              <span>Port / City</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => setAutoSpin((s) => !s)}
@@ -958,16 +1184,16 @@ export const Globe3DCanvas: React.FC<{
           <button
             type="button"
             onClick={() => {
-              viewRef.current.targetLat = 14;
-              viewRef.current.targetLon = 72;
-              viewRef.current.rotLat = 14;
-              viewRef.current.rotLon = 72;
-              viewRef.current.targetZoom = 1.08;
-              viewRef.current.zoom = 1.08;
-              setZoomScale(1.08);
-              setRenderTick((t) => t + 1);
+              const target = focusedShipment;
+              if (target?.origin && target?.destination) {
+                const avgLat = (target.origin.latitude + target.destination.latitude) / 2;
+                const avgLon = (target.origin.longitude + target.destination.longitude) / 2;
+                zoomToPoint(avgLat, avgLon, 1.18);
+              } else {
+                zoomToPoint(15, 65, 1.08);
+              }
             }}
-            title="Reset 3D globe orientation"
+            title="Reset 3D globe to full corridor"
             className="inline-flex h-7 items-center gap-1 rounded bg-surface px-2 text-[11px] font-medium text-ink-2 hover:text-ink cursor-pointer"
           >
             <RotateCcw className="size-3" />
@@ -975,38 +1201,9 @@ export const Globe3DCanvas: React.FC<{
           </button>
         </div>
 
-        <div className="flex flex-col overflow-hidden rounded-md border border-line-strong bg-overlay shadow-md">
-          <button
-            type="button"
-            aria-label="Zoom in 3D globe"
-            onClick={() => {
-              const next = Math.min(2.2, viewRef.current.targetZoom + 0.2);
-              viewRef.current.targetZoom = next;
-              viewRef.current.zoom = next;
-              setZoomScale(Number(next.toFixed(2)));
-            }}
-            className="flex size-8 items-center justify-center border-b border-line text-ink hover:bg-surface cursor-pointer"
-          >
-            <Plus className="size-3.5" />
-          </button>
-          <button
-            type="button"
-            aria-label="Zoom out 3D globe"
-            onClick={() => {
-              const next = Math.max(0.75, viewRef.current.targetZoom - 0.2);
-              viewRef.current.targetZoom = next;
-              viewRef.current.zoom = next;
-              setZoomScale(Number(next.toFixed(2)));
-            }}
-            className="flex size-8 items-center justify-center text-ink hover:bg-surface cursor-pointer"
-          >
-            <Minus className="size-3.5" />
-          </button>
-        </div>
-
-        <div className="rounded border border-line bg-overlay px-2 py-0.5 font-mono text-[10px] text-ink-3">
+        <div className="rounded border border-line bg-overlay px-2 py-0.5 font-mono text-[10px] text-ink-2 shadow-sm">
           <Compass className="mr-1 inline size-3" />
-          3D Orthographic Globe · {Math.round(zoomScale * 100)}% · Drag to rotate
+          <span ref={hudBadgeRef}>&copy; OpenStreetMap · 3D Globe (108% · OSM z3)</span>
         </div>
       </div>
     </div>

@@ -145,29 +145,38 @@
   }
 }
 
-/* Theme-Aware Leaflet Canvas with Isolated Stacking Context */
+/* Theme-Aware Leaflet OpenStreetMap Canvas with Isolated Stacking Context */
 #world-map,
 .leaflet-container {
-  position: relative;
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
   z-index: 0 !important;
   isolation: isolate;
-  background: var(--color-map-bg) !important;
-  background-color: var(--color-map-bg) !important;
+  background: #AAD3DF !important;
+  background-color: #AAD3DF !important;
   font-family: var(--font-sans);
   outline: none;
 }
 
+.dark #world-map,
+.dark .leaflet-container {
+  background: #0D151A !important;
+  background-color: #0D151A !important;
+}
+
 .leaflet-pane,
 .leaflet-tile-pane {
-  background-color: var(--color-map-bg);
+  background-color: transparent;
 }
 
 .dark .leaflet-tile {
-  filter: brightness(0.84) contrast(1.1);
+  filter: invert(0.86) hue-rotate(180deg) brightness(1.22) contrast(1.25) saturate(1.15);
 }
 
 html:not(.dark) .leaflet-tile {
-  filter: contrast(1.06) brightness(0.97);
+  filter: none;
 }
 
 .leaflet-popup-content-wrapper,

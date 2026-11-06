@@ -10,11 +10,26 @@ class ShipmentException extends Model
 {
     use HasFactory;
 
-    protected $table = 'exceptions';
+    /**
+     * Exact table name required by Slide 11 ("Data model minimum"): shipment_exceptions
+     */
+    protected $table = 'shipment_exceptions';
 
     public const STATUS_OPEN = 'OPEN';
     public const STATUS_INVESTIGATING = 'INVESTIGATING';
     public const STATUS_RESOLVED = 'RESOLVED';
+
+    public const TYPES = [
+        'CUSTOMS_HOLD',
+        'WEATHER_DELAY',
+        'PORT_CONGESTION',
+        'DAMAGED',
+        'MISROUTED',
+        'DOCUMENTATION_ISSUE',
+        'CARRIER_DELAY',
+        'DAMAGED_CARGO',
+        'ROUTE_DEVIATION',
+    ];
 
     protected $fillable = [
         'shipment_id',
