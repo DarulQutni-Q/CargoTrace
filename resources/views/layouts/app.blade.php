@@ -174,6 +174,7 @@
     @php
         $ctUser = auth()->user();
         $ctUnread = $ctUser ? $ctUser->notifications()->whereNull('read_at')->count() : 0;
+        $ctLatest = $ctUser ? $ctUser->notifications()->with('shipment')->latest()->limit(5)->get() : collect();
         $ctScenario = \Illuminate\Support\Facades\DB::table('scenario_configs')->first();
         $ctRoleLabel = $ctUser ? match ($ctUser->role) {
             'ADMIN' => 'Administrator',
@@ -261,6 +262,14 @@
                         </div>
                     </div>
                     <div class="flex items-center gap-0.5">
+                        @if ($ctUser->isAdmin())
+                            <form method="POST" action="{{ route('scenario.reset') }}" onsubmit="return confirm('Reset the demo dataset to the seeded state? All changes since the last seed will be lost.');">
+                                @csrf
+                                <button type="submit" title="Reset seeded demo data" aria-label="Reset seeded demo data" class="flex size-7 items-center justify-center rounded-md text-[var(--ink-2)] transition-colors hover:bg-[var(--tint)] hover:text-[var(--ink-1)]">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="size-3.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                                </button>
+                            </form>
+                        @endif
                         <form method="POST" action="{{ route('logout') }}">
                             @csrf
                             <button type="submit" title="Sign out" aria-label="Sign out" class="flex size-7 items-center justify-center rounded-md text-[var(--ink-2)] transition-colors hover:bg-[var(--tint)] hover:text-[var(--ink-1)]">
@@ -282,7 +291,7 @@
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="size-4"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
                     </button>
                     <div class="flex min-w-0 items-baseline gap-2.5">
-                        <h1 class="truncate text-sm font-semibold tracking-tight text-[var(--ink-1)] sm:text-[15px]">@yield('header_title', 'CargoTrace')</h1>
+                        <h1 class="shrink-0 truncate text-sm font-semibold tracking-tight text-[var(--ink-1)] sm:text-[15px]">@yield('header_title', 'CargoTrace')</h1>
                         <span class="hidden truncate text-xs font-medium text-[var(--ink-3)] md:inline">@yield('header_subtitle', '')</span>
                     </div>
                 </div>
@@ -302,17 +311,39 @@
                         <span id="theme-label" class="hidden sm:inline">Dark mode</span>
                     </button>
 
-                    <a href="{{ route('notifications.index') }}" aria-label="Notifications" class="relative flex size-8 items-center justify-center rounded-md border border-[var(--line)] bg-[var(--bg-surface)] text-[var(--ink-1)] transition-colors hover:border-[var(--line-strong)] hover:bg-[var(--bg-raised)]">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-                        @if ($ctUnread > 0)
-                            <span class="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full border border-[#080B0C]/20 bg-[#C6F432] font-mono text-[10px] font-bold text-[#080B0C]">{{ $ctUnread > 9 ? '9+' : $ctUnread }}</span>
-                        @endif
-                    </a>
+                    <div class="relative">
+                        <button type="button" onclick="toggleBellDropdown(event)" aria-label="Notifications" class="relative flex size-8 items-center justify-center rounded-md border border-[var(--line)] bg-[var(--bg-surface)] text-[var(--ink-1)] transition-colors hover:border-[var(--line-strong)] hover:bg-[var(--bg-raised)]">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+                            @if ($ctUnread > 0)
+                                <span class="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full border border-[#080B0C]/20 bg-[#C6F432] font-mono text-[10px] font-bold text-[#080B0C]">{{ $ctUnread > 9 ? '9+' : $ctUnread }}</span>
+                            @endif
+                        </button>
+                        <div id="bell-dropdown" class="absolute right-0 top-full z-[1300] mt-2 hidden w-80 overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--bg-surface)] shadow-lg">
+                            <div class="divide-y divide-[var(--line)]">
+                                @forelse ($ctLatest as $ctNote)
+                                    <a href="{{ $ctNote->shipment ? route('shipments.show', $ctNote->shipment) : route('notifications.index') }}" class="flex items-start gap-2.5 px-4 py-3 transition-colors hover:bg-[var(--bg-raised)]">
+                                        @if (is_null($ctNote->read_at))
+                                            <span class="mt-1.5 size-1.5 shrink-0 rounded-full bg-[#C6F432]"></span>
+                                        @else
+                                            <span class="mt-1.5 size-1.5 shrink-0 rounded-full bg-[var(--ink-3)]"></span>
+                                        @endif
+                                        <span class="min-w-0">
+                                            <span class="block truncate text-xs font-medium text-[var(--ink-1)]">{{ $ctNote->title }}</span>
+                                            <span class="mt-0.5 block font-mono text-[11px] text-[var(--ink-3)]">{{ $ctNote->created_at->format('M j · H:i') }}</span>
+                                        </span>
+                                    </a>
+                                @empty
+                                    <p class="px-4 py-3 text-xs text-[var(--ink-3)]">No notifications yet.</p>
+                                @endforelse
+                            </div>
+                            <a href="{{ route('notifications.index') }}" class="block border-t border-[var(--line)] bg-[var(--bg-base)] px-4 py-2.5 text-xs font-semibold text-[var(--ink-1)] transition-colors hover:bg-[var(--bg-raised)]">View all notifications →</a>
+                        </div>
+                    </div>
 
                     <a href="{{ route('shipments.create') }}" class="inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-md bg-[var(--brand)] px-2.5 text-xs font-semibold text-[var(--brand-ink)] transition-colors hover:bg-[var(--brand-hover)] sm:px-3">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-3.5"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-                        <span class="hidden sm:inline">New shipment</span>
-                        <span class="sm:hidden">New</span>
+                        <span class="hidden sm:inline">{{ $ctUser && $ctUser->isCustomer() ? 'Request shipment' : 'New shipment' }}</span>
+                        <span class="sm:hidden">{{ $ctUser && $ctUser->isCustomer() ? 'Request' : 'New' }}</span>
                     </a>
                 </div>
             </header>
@@ -354,6 +385,19 @@
             applyThemeLabel();
             window.dispatchEvent(new CustomEvent('ct:theme', { detail: { dark: isDark } }));
         }
+
+        function toggleBellDropdown(event) {
+            event.stopPropagation();
+            const dropdown = document.getElementById('bell-dropdown');
+            if (dropdown) dropdown.classList.toggle('hidden');
+        }
+
+        document.addEventListener('click', function (event) {
+            const dropdown = document.getElementById('bell-dropdown');
+            if (dropdown && !dropdown.classList.contains('hidden') && !dropdown.contains(event.target)) {
+                dropdown.classList.add('hidden');
+            }
+        });
 
         document.addEventListener('DOMContentLoaded', applyThemeLabel);
     </script>

@@ -33,6 +33,21 @@ class ShipmentException extends Model
         self::TYPE_DOCUMENTATION_ISSUE,
     ];
 
+    /** Title Case labels, mirroring the AI Studio reference exceptionTypeLabel. */
+    public const TYPE_LABELS = [
+        self::TYPE_CUSTOMS_HOLD => 'Customs hold',
+        self::TYPE_WEATHER_DELAY => 'Weather delay',
+        self::TYPE_PORT_CONGESTION => 'Port congestion',
+        self::TYPE_DAMAGED => 'Damaged',
+        self::TYPE_MISROUTED => 'Misrouted',
+        self::TYPE_DOCUMENTATION_ISSUE => 'Documentation issue',
+    ];
+
+    public static function typeLabel(string $type): string
+    {
+        return self::TYPE_LABELS[$type] ?? ucwords(strtolower(str_replace('_', ' ', $type)));
+    }
+
     protected $fillable = [
         'shipment_id',
         'type',

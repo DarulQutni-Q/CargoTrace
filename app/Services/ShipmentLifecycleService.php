@@ -108,7 +108,7 @@ class ShipmentLifecycleService
         if ($oldStatus !== $shipment->current_status) {
             AuditLog::create([
                 'actor_id' => $actor?->id,
-                'action' => 'STATUS_TRANSITION',
+                'action' => 'shipment.status_changed',
                 'entity_type' => 'Shipment',
                 'entity_id' => $shipment->id,
                 'changes' => [
@@ -119,7 +119,7 @@ class ShipmentLifecycleService
             Notification::create([
                 'user_id' => $shipment->customer_id,
                 'shipment_id' => $shipment->id,
-                'type' => 'STATUS_' . $shipment->current_status,
+                'type' => 'STATUS_CHANGED',
                 'title' => sprintf('%s advanced to %s', $shipment->shipment_number, $shipment->current_status),
                 'body' => sprintf('Latest scan recorded at %s.', $event->location_name),
             ]);
@@ -162,9 +162,30 @@ class ShipmentLifecycleService
             Notification::create([
                 'user_id' => $shipment->customer_id,
                 'shipment_id' => $shipment->id,
-                'type' => 'EXCEPTION_RAISED',
-                'title' => sprintf('Exception on %s (%s)', $shipment->shipment_number, $exc->type),
-                'body' => $exc->description ?? 'Operational exception raised on your corridor shipment.',
+                'type' => 'EXCEPTION_CREATED',
+                'title' => sprintf('%s on %s', ShipmentException::typeLabel($exc->type), $shipment->shipment_number),
+                'body' => sprintf('Severity %s — %s', $exc->severity, $exc->description ?? 'Operational exception raised on your corridor shipment.'),
+            ]);
+
+            if ($actor !== null && (int) $actor->id !== (int) $shipment->customer_id) {
+                Notification::create([
+                    'user_id' => $actor->id,
+                    'shipment_id' => $shipment->id,
+                    'type' => 'EXCEPTION_CREATED',
+                    'title' => sprintf('%s on %s', ShipmentException::typeLabel($exc->type), $shipment->shipment_number),
+                    'body' => sprintf('Severity %s — %s', $exc->severity, $exc->description ?? 'Operational exception raised on your corridor shipment.'),
+                ]);
+            }
+
+            AuditLog::create([
+                'actor_id' => $actor?->id,
+                'action' => 'exception.created',
+                'entity_type' => 'ShipmentException',
+                'entity_id' => $exc->id,
+                'changes' => [
+                    'type' => ['from' => null, 'to' => $exc->type],
+                    'severity' => ['from' => null, 'to' => $exc->severity],
+                ],
             ]);
 
             return $exc;

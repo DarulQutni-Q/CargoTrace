@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UpdateExceptionRequest;
 use App\Models\AuditLog;
+use App\Models\Notification;
 use App\Models\Shipment;
 use App\Models\ShipmentException;
 use App\Services\ShipmentLifecycleService;
@@ -71,13 +72,23 @@ class ExceptionController extends Controller
 
         AuditLog::create([
             'actor_id' => $request->user()?->id,
-            'action' => 'EXCEPTION_STATUS_CHANGED',
+            'action' => 'exception.status_changed',
             'entity_type' => 'ShipmentException',
             'entity_id' => $exception->id,
             'changes' => [
                 'status' => ['from' => $oldStatus, 'to' => $targetStatus],
             ],
         ]);
+
+        if ($targetStatus === ShipmentException::STATUS_RESOLVED) {
+            Notification::create([
+                'user_id' => $request->user()?->id,
+                'shipment_id' => $exception->shipment_id,
+                'type' => 'EXCEPTION_RESOLVED',
+                'title' => sprintf('%s resolved on %s', ShipmentException::typeLabel($exception->type), $exception->shipment->shipment_number),
+                'body' => 'Resolution recorded by operations.',
+            ]);
+        }
 
         return response()->json(['status' => 'ok', 'data' => $exception->fresh()]);
     }

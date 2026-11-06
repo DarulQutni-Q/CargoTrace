@@ -2,7 +2,7 @@
 
 @section('title', 'Carriers')
 @section('header_title', 'Carriers')
-@section('header_subtitle', $carriers->count() . ' registered logistics carriers')
+@section('header_subtitle', 'Sea, air, and road carriers operating across international shipping corridors')
 
 @section('content')
 <div class="mx-auto max-w-[1440px] space-y-5 p-3 sm:p-6">
@@ -19,37 +19,21 @@
         </div>
     @endif
 
-    @if (auth()->user()->canOperateCorridor())
-        <form method="POST" action="{{ route('carriers.store') }}" class="rounded-lg border border-[var(--line)] bg-[var(--bg-surface)] p-4 sm:p-5">
-            @csrf
-            <h2 class="text-sm font-semibold">Register a new carrier</h2>
-            <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                <div>
-                    <label for="carrier_name" class="text-xs font-semibold">Carrier name</label>
-                    <input id="carrier_name" name="name" type="text" required maxlength="120" class="mt-1.5 h-9 w-full rounded-md border border-[var(--line)] bg-[var(--bg-base)] px-2.5 text-xs" placeholder="Meridian Air Cargo" />
-                </div>
-                <div>
-                    <label for="carrier_code" class="text-xs font-semibold">Code</label>
-                    <input id="carrier_code" name="code" type="text" required maxlength="16" class="mt-1.5 h-9 w-full rounded-md border border-[var(--line)] bg-[var(--bg-base)] px-2.5 font-mono text-xs" placeholder="MAC" />
-                </div>
-                <div>
-                    <label for="service_type" class="text-xs font-semibold">Transport mode</label>
-                    <select id="service_type" name="service_type" required class="mt-1.5 h-9 w-full rounded-md border border-[var(--line)] bg-[var(--bg-base)] px-2 text-xs">
-                        <option value="SEA">SEA</option>
-                        <option value="AIR">AIR</option>
-                        <option value="ROAD">ROAD</option>
-                    </select>
-                </div>
-                <div>
-                    <label for="contact_email" class="text-xs font-semibold">Dispatch email</label>
-                    <input id="contact_email" name="contact_email" type="email" maxlength="180" class="mt-1.5 h-9 w-full rounded-md border border-[var(--line)] bg-[var(--bg-base)] px-2.5 text-xs" placeholder="desk@example.com" />
-                </div>
-                <div class="flex items-end">
-                    <button type="submit" class="inline-flex h-9 items-center rounded-md bg-[#C6F432] px-4 text-xs font-semibold text-[#080B0C]">Register carrier</button>
-                </div>
-            </div>
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <h2 class="text-sm font-semibold">Carrier directory</h2>
+        <form method="GET" action="{{ route('carriers.index') }}" class="flex flex-wrap items-center gap-2">
+            <input type="text" name="q" value="{{ $q }}" placeholder="Search carrier, code, email..." class="h-8 w-64 rounded-md border border-[var(--line)] bg-[var(--bg-base)] px-2.5 text-xs" />
+            <select name="mode" onchange="this.form.submit()" class="h-8 rounded-md border border-[var(--line)] bg-[var(--bg-base)] px-2 text-xs">
+                <option value="">All modes</option>
+                <option value="SEA" {{ $mode === 'SEA' ? 'selected' : '' }}>SEA</option>
+                <option value="AIR" {{ $mode === 'AIR' ? 'selected' : '' }}>AIR</option>
+                <option value="ROAD" {{ $mode === 'ROAD' ? 'selected' : '' }}>ROAD</option>
+            </select>
+            @if (auth()->user()->canOperateCorridor())
+                <a href="{{ route('carriers.create') }}" class="inline-flex h-8 items-center rounded-md bg-[#C6F432] px-3 text-xs font-semibold text-[#080B0C]">+ Add carrier</a>
+            @endif
         </form>
-    @endif
+    </div>
 
     <div class="overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--bg-surface)]">
         <div class="overflow-x-auto">
@@ -60,19 +44,31 @@
                         <th class="px-5 py-3 font-medium">Code</th>
                         <th class="px-5 py-3 font-medium">Transport mode</th>
                         <th class="px-5 py-3 font-medium">Dispatch email</th>
+                        <th class="px-5 py-3 font-medium">Active shipments</th>
                         <th class="px-5 py-3 font-medium">Status</th>
+                        <th class="px-5 py-3 text-right font-medium">Action</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-[var(--line)]">
-                    @foreach ($carriers as $carrier)
+                    @forelse ($carriers as $carrier)
                         <tr>
                             <td class="px-5 py-3 text-xs font-semibold">{{ $carrier->name }}</td>
                             <td class="px-5 py-3 font-mono text-xs">{{ $carrier->code }}</td>
-                            <td class="px-5 py-3 font-mono text-xs">{{ $carrier->service_type }}</td>
+                            <td class="px-5 py-3">@include('partials.badge', ['tone' => 'neutral', 'label' => $carrier->service_type ?: 'SEA'])</td>
                             <td class="px-5 py-3 font-mono text-xs">{{ $carrier->contact_email ?? '—' }}</td>
-                            <td class="px-5 py-3 text-xs">{{ $carrier->is_active ? 'Active' : 'Inactive' }}</td>
+                            <td class="px-5 py-3 font-mono text-xs tabular-nums">{{ $carrier->shipments_count }}</td>
+                            <td class="px-5 py-3">@include('partials.badge', ['tone' => $carrier->is_active ? 'green' : 'neutral', 'label' => $carrier->is_active ? 'Active' : 'Inactive'])</td>
+                            <td class="px-5 py-3 text-right">
+                                @if (auth()->user()->canOperateCorridor())
+                                    <a href="{{ route('carriers.edit', $carrier) }}" class="text-xs font-semibold underline">Edit</a>
+                                @endif
+                            </td>
                         </tr>
-                    @endforeach
+                    @empty
+                        <tr>
+                            <td colspan="7" class="px-5 py-8 text-center text-xs opacity-70">No carriers match the active search or mode filter.</td>
+                        </tr>
+                    @endforelse
                 </tbody>
             </table>
         </div>

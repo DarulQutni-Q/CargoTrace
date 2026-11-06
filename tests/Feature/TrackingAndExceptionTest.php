@@ -86,7 +86,7 @@ class TrackingAndExceptionTest extends TestCase
         $this->assertDatabaseHas('notifications', [
             'user_id' => $this->customer->id,
             'shipment_id' => $shipment->id,
-            'type' => 'EXCEPTION_RAISED',
+            'type' => 'EXCEPTION_CREATED',
         ]);
     }
 

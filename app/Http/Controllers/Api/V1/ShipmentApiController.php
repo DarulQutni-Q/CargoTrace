@@ -276,17 +276,23 @@ class ShipmentApiController extends Controller
 
             AuditLog::create([
                 'actor_id' => $request->user()?->id,
-                'action' => 'SHIPMENT_CREATED',
+                'action' => 'shipment.created',
                 'entity_type' => 'Shipment',
                 'entity_id' => $s->id,
-                'changes' => [
-                    'shipment_number' => ['from' => null, 'to' => $s->shipment_number],
-                    'current_status' => ['from' => null, 'to' => $s->current_status],
-                ],
+                'changes' => null,
             ]);
 
             return $s;
         });
+
+        $destination = Location::findOrFail($validated['destination_location_id']);
+        Notification::create([
+            'user_id' => $shipment->customer_id,
+            'shipment_id' => $shipment->id,
+            'type' => 'SHIPMENT_CREATED',
+            'title' => sprintf('New shipment %s registered', $shipment->shipment_number),
+            'body' => sprintf('%s scheduled from %s to %s%s.', $shipment->cargo_type, $origin->city, $destination->city, ! empty($validated['transit_stop']) ? ' via '.$validated['transit_stop']['location_name'] : ''),
+        ]);
 
         return response()->json([
             'status' => 'ok',
@@ -313,7 +319,7 @@ class ShipmentApiController extends Controller
 
         AuditLog::create([
             'actor_id' => $request->user()?->id,
-            'action' => 'SHIPMENT_UPDATED',
+            'action' => 'shipment.updated',
             'entity_type' => 'Shipment',
             'entity_id' => $shipment->id,
             'changes' => ['fields' => ['from' => null, 'to' => array_keys($validated)]],
@@ -338,12 +344,10 @@ class ShipmentApiController extends Controller
 
         AuditLog::create([
             'actor_id' => $request->user()?->id,
-            'action' => 'SHIPMENT_ARCHIVED',
+            'action' => 'shipment.archived',
             'entity_type' => 'Shipment',
             'entity_id' => $shipment->id,
-            'changes' => [
-                'archived_at' => ['from' => null, 'to' => $shipment->archived_at->toIso8601String()],
-            ],
+            'changes' => null,
         ]);
 
         return response()->json([

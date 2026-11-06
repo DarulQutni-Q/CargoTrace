@@ -19,9 +19,12 @@ use App\Services\IndonesianPortCatalog;
 use App\Services\ShipmentLifecycleService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use InvalidArgumentException;
 
@@ -43,6 +46,7 @@ class CargoTraceWebController extends Controller
         $shipments = Shipment::with(['origin', 'destination', 'carrier', 'exceptions'])
             ->active()
             ->visibleTo($request->user())
+            ->orderBy('id')
             ->get();
 
         $lowH = (int) ($scenario->low_threshold_hours ?? 6);
@@ -52,12 +56,20 @@ class CargoTraceWebController extends Controller
             return $this->delayClassifier->assess($s->expected_arrival_at, $s->estimated_arrival_at, $lowH, $highH)['delayed'];
         })->count();
 
+        $avgDelayHours = $delayedCount > 0
+            ? (int) round($shipments
+                ->filter(fn (Shipment $s) => $this->delayClassifier->assess($s->expected_arrival_at, $s->estimated_arrival_at, $lowH, $highH)['delayed'])
+                ->map(fn (Shipment $s) => $this->delayClassifier->assess($s->expected_arrival_at, $s->estimated_arrival_at, $lowH, $highH)['delay_hours'])
+                ->avg())
+            : 0;
+
         $metrics = [
             'total_shipments' => $shipments->count(),
             'in_transit' => $shipments->where('current_status', Shipment::STATUS_IN_TRANSIT)->count(),
             'delivered' => $shipments->where('current_status', Shipment::STATUS_DELIVERED)->count(),
             'delayed' => $delayedCount,
-            'open_exceptions' => ShipmentException::where('status', '!=', ShipmentException::STATUS_RESOLVED)->count(),
+            'open_exceptions' => $shipments->flatMap->exceptions->where('status', '!=', ShipmentException::STATUS_RESOLVED)->count(),
+            'avg_delay_hours' => $avgDelayHours,
             'on_time_rate' => $shipments->count() > 0
                 ? round((($shipments->count() - $delayedCount) / $shipments->count()) * 100)
                 : 100,
@@ -69,7 +81,7 @@ class CargoTraceWebController extends Controller
             $byStatus[$status] = $shipments->where('current_status', $status)->count();
         }
 
-        $byCarrier = Carrier::with(['shipments' => fn ($q) => $q->active()])->get()->map(function (Carrier $carrier) use ($lowH, $highH) {
+        $byCarrier = Carrier::orderBy('id')->with(['shipments' => fn ($q) => $q->active()])->get()->map(function (Carrier $carrier) use ($lowH, $highH) {
             $delayed = $carrier->shipments->filter(function (Shipment $s) use ($lowH, $highH) {
                 return $this->delayClassifier->assess($s->expected_arrival_at, $s->estimated_arrival_at, $lowH, $highH)['delayed'];
             })->count();
@@ -80,15 +92,52 @@ class CargoTraceWebController extends Controller
                 'delayed' => $delayed,
                 'on_time' => $carrier->shipments->count() - $delayed,
             ];
-        })->filter(fn ($row) => $row['total'] > 0)->values();
+        })->values();
+
+        // 6-month corridor volume, mirroring the React trend chart: with 6+
+        // visible shipments the buckets spread by list index (idx % 6), with
+        // fewer the departure month decides (Jun = 0 ... Nov = 5).
+        $trend = [0, 0, 0, 0, 0, 0];
+        if ($shipments->count() > 0) {
+            foreach ($shipments->values() as $idx => $s) {
+                if ($shipments->count() >= 6) {
+                    $bucket = $idx % 6;
+                } else {
+                    $dep = $s->expected_departure_at ?? $s->created_at;
+                    $bucket = $dep ? max(0, min(5, (int) $dep->format('n') - 6)) : $idx % 6;
+                }
+                $trend[$bucket]++;
+            }
+        }
+
+        // Priority attention queue: visible shipments that are delayed or carry an
+        // open exception, worst delay first, capped at six (React triage rule).
+        $queue = $shipments
+            ->filter(function (Shipment $s) use ($lowH, $highH) {
+                $delayed = $this->delayClassifier->assess($s->expected_arrival_at, $s->estimated_arrival_at, $lowH, $highH)['delayed'];
+                $hasOpenException = $s->exceptions->where('status', '!=', ShipmentException::STATUS_RESOLVED)->isNotEmpty();
+
+                return $delayed || $hasOpenException;
+            })
+            ->map(function (Shipment $s) use ($lowH, $highH) {
+                $s->delay_assessment = $this->delayClassifier->assess($s->expected_arrival_at, $s->estimated_arrival_at, $lowH, $highH);
+                $s->open_exception = $s->exceptions->where('status', '!=', ShipmentException::STATUS_RESOLVED)->first();
+
+                return $s;
+            })
+            ->sortByDesc(fn (Shipment $s) => $s->delay_assessment['delay_hours'])
+            ->take(6)
+            ->values();
 
         return view('dashboard.index', [
             'scenario' => $scenario,
             'metrics' => $metrics,
-            'shipments' => $shipments,
+            'shipments' => $queue,
             'carriers' => Carrier::all(),
             'byStatus' => $byStatus,
             'byCarrier' => $byCarrier,
+            'trend' => $trend,
+            'claimSamples' => Shipment::active()->orderByDesc('id')->take(4)->get(),
         ]);
     }
 
@@ -487,11 +536,54 @@ class CargoTraceWebController extends Controller
         Gate::authorize('create', Shipment::class);
 
         return view('shipments.create', [
-            'carriers' => Carrier::all(),
-            'locations' => Location::all(),
+            'shipment' => null,
+            'existingCheckpoint' => null,
+            'carriers' => Carrier::where('is_active', true)->orderBy('id')->get(),
+            'locations' => Location::orderBy('id')->get(),
+            'portOptions' => $this->portOptions(),
             'customers' => User::where('role', 'CUSTOMER')->orderBy('name')->get(),
             'isCustomer' => $request->user()->isCustomer(),
         ]);
+    }
+
+    /**
+     * Port combobox options for the shipment form: active locations first,
+     * then catalog presets not yet registered (React UnifiedPortOption).
+     */
+    private function portOptions(): array
+    {
+        $active = Location::orderBy('id')->get();
+        $options = $active->map(fn (Location $loc) => [
+            'id' => $loc->id,
+            'name' => $loc->name,
+            'code' => $loc->code,
+            'city' => $loc->city,
+            'province' => $loc->province,
+            'country' => $loc->country,
+            'latitude' => (float) $loc->latitude,
+            'longitude' => (float) $loc->longitude,
+            'registered' => true,
+        ])->all();
+
+        $activeCodes = $active->map(fn (Location $l) => strtoupper($l->code))->all();
+        foreach (IndonesianPortCatalog::presets() as $preset) {
+            if (in_array(strtoupper($preset['code']), $activeCodes, true)) {
+                continue;
+            }
+            $options[] = [
+                'id' => null,
+                'name' => $preset['name'],
+                'code' => $preset['code'],
+                'city' => $preset['city'],
+                'province' => $preset['province'],
+                'country' => $preset['country'],
+                'latitude' => (float) $preset['latitude'],
+                'longitude' => (float) $preset['longitude'],
+                'registered' => false,
+            ];
+        }
+
+        return $options;
     }
 
     /**
@@ -553,22 +645,202 @@ class CargoTraceWebController extends Controller
                 'created_by' => $request->user()?->id,
             ]);
 
+            // Optional planned intermediate transit stop (same as the API store).
+            if (! empty($validated['transit_stop'])) {
+                $stop = $validated['transit_stop'];
+                TrackingEvent::create([
+                    'shipment_id' => $s->id,
+                    'event_type' => 'CHECKPOINT',
+                    'occurred_at' => $depTime->copy()->addMinutes(5),
+                    'location_name' => $stop['location_name'],
+                    'latitude' => $stop['latitude'],
+                    'longitude' => $stop['longitude'],
+                    'description' => sprintf('Planned intermediate transit stop via %s.', $stop['location_name']),
+                    'created_by' => $request->user()?->id,
+                ]);
+            }
+
             AuditLog::create([
                 'actor_id' => $request->user()?->id,
-                'action' => 'SHIPMENT_CREATED',
+                'action' => 'shipment.created',
                 'entity_type' => 'Shipment',
                 'entity_id' => $s->id,
-                'changes' => [
-                    'shipment_number' => ['from' => null, 'to' => $s->shipment_number],
-                    'current_status' => ['from' => null, 'to' => $s->current_status],
-                ],
+                'changes' => null,
             ]);
 
             return $s;
         });
 
+        $destination = Location::findOrFail($validated['destination_location_id']);
+        Notification::create([
+            'user_id' => $shipment->customer_id,
+            'shipment_id' => $shipment->id,
+            'type' => 'SHIPMENT_CREATED',
+            'title' => sprintf('New shipment %s registered', $shipment->shipment_number),
+            'body' => sprintf('%s scheduled from %s to %s%s.', $shipment->cargo_type, $origin->city, $destination->city, ! empty($validated['transit_stop']) ? ' via '.$validated['transit_stop']['location_name'] : ''),
+        ]);
+
         return redirect()->route('shipments.show', $shipment)
             ->with('status', 'Shipment '.$shipment->shipment_number.' created.');
+    }
+
+    /**
+     * Edit-shipment form (same form as create, in edit mode).
+     */
+    public function editShipment(Request $request, Shipment $shipment): View
+    {
+        Gate::authorize('operate', $shipment);
+
+        $shipment->load(['items', 'trackingEvents']);
+        $existingCheckpoint = $shipment->trackingEvents
+            ->where('event_type', 'CHECKPOINT')
+            ->whereNotNull('latitude')
+            ->sortByDesc('occurred_at')
+            ->first();
+
+        return view('shipments.create', [
+            'shipment' => $shipment,
+            'existingCheckpoint' => $existingCheckpoint,
+            'carriers' => Carrier::where('is_active', true)->orderBy('id')->get(),
+            'locations' => Location::orderBy('id')->get(),
+            'portOptions' => $this->portOptions(),
+            'customers' => User::where('role', 'CUSTOMER')->orderBy('name')->get(),
+            'isCustomer' => $request->user()->isCustomer(),
+        ]);
+    }
+
+    /**
+     * Update a shipment's planning fields + manifest from the edit form.
+     * Mirrors the React updateShipment: scalar diffs go to the audit log as
+     * shipment.updated, a transit stop appends a CHECKPOINT event.
+     */
+    public function updateShipment(StoreShipmentRequest $request, Shipment $shipment): RedirectResponse
+    {
+        Gate::authorize('operate', $shipment);
+
+        $validated = $request->validated();
+
+        $scalarFields = ['customer_id', 'carrier_id', 'origin_location_id', 'destination_location_id', 'cargo_type', 'weight_kg', 'volume_m3', 'expected_departure_at', 'expected_arrival_at', 'estimated_arrival_at'];
+        $changes = [];
+        foreach ($scalarFields as $field) {
+            $old = $shipment->getOriginal($field);
+            $new = $validated[$field] ?? null;
+            if ((string) $old !== (string) $new) {
+                $changes[$field] = ['from' => $old, 'to' => $new];
+            }
+        }
+
+        DB::transaction(function () use ($validated, $shipment, $request) {
+            $shipment->update([
+                'customer_id' => $validated['customer_id'],
+                'carrier_id' => $validated['carrier_id'],
+                'origin_location_id' => $validated['origin_location_id'],
+                'destination_location_id' => $validated['destination_location_id'],
+                'cargo_type' => $validated['cargo_type'],
+                'weight_kg' => $validated['weight_kg'],
+                'volume_m3' => $validated['volume_m3'],
+                'expected_departure_at' => $validated['expected_departure_at'] ?? $shipment->expected_departure_at,
+                'expected_arrival_at' => $validated['expected_arrival_at'],
+                'estimated_arrival_at' => $validated['estimated_arrival_at'] ?? $validated['expected_arrival_at'],
+            ]);
+
+            $shipment->items()->delete();
+            foreach ($validated['items'] as $item) {
+                ShipmentItem::create([
+                    'shipment_id' => $shipment->id,
+                    'description' => $item['description'],
+                    'quantity' => $item['quantity'],
+                    'weight_kg' => $item['weight_kg'],
+                    'volume_m3' => $item['volume_m3'],
+                ]);
+            }
+
+            if (! empty($validated['transit_stop'])) {
+                $stop = $validated['transit_stop'];
+                $depTime = $shipment->expected_departure_at ?? now();
+                TrackingEvent::create([
+                    'shipment_id' => $shipment->id,
+                    'event_type' => 'CHECKPOINT',
+                    'occurred_at' => $depTime->copy()->addMinutes(5),
+                    'location_name' => $stop['location_name'],
+                    'latitude' => $stop['latitude'],
+                    'longitude' => $stop['longitude'],
+                    'description' => 'Intermediate transit stop added via shipment route editor.',
+                    'created_by' => $request->user()?->id,
+                ]);
+            }
+        });
+
+        if (! empty($changes)) {
+            AuditLog::create([
+                'actor_id' => $request->user()?->id,
+                'action' => 'shipment.updated',
+                'entity_type' => 'Shipment',
+                'entity_id' => $shipment->id,
+                'changes' => $changes,
+            ]);
+        }
+
+        return redirect()->route('shipments.show', $shipment)
+            ->with('status', sprintf('Shipment %s updated.', $shipment->shipment_number));
+    }
+
+    /**
+     * Archive a shipment (sets archived_at). Mirrors the React
+     * archiveShipment: the shipment leaves every list, history is kept.
+     */
+    public function archiveShipment(Request $request, Shipment $shipment): RedirectResponse
+    {
+        Gate::authorize('delete', $shipment);
+
+        $shipment->update(['archived_at' => now()]);
+
+        AuditLog::create([
+            'actor_id' => $request->user()?->id,
+            'action' => 'shipment.archived',
+            'entity_type' => 'Shipment',
+            'entity_id' => $shipment->id,
+            'changes' => null,
+        ]);
+
+        return redirect()->route('shipments.index')
+            ->with('status', sprintf('Shipment %s archived.', $shipment->shipment_number));
+    }
+
+    /**
+     * Customer portal: link a shipment number to the signed-in customer.
+     * Mirrors the React claimShipmentByNumber.
+     */
+    public function claimShipment(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'shipment_number' => ['required', 'string', 'max:32'],
+        ]);
+
+        $cleanRef = strtoupper(trim($validated['shipment_number']));
+
+        $shipment = Shipment::active()
+            ->whereRaw('UPPER(shipment_number) = ?', [$cleanRef])
+            ->first();
+
+        if ($shipment === null) {
+            return back()->withErrors([
+                'shipment_number' => sprintf('Shipment "%s" tidak ditemukan. Cek kembali kode resi (contoh: CT0001NFR).', $cleanRef),
+            ])->withInput();
+        }
+
+        $shipment->update(['customer_id' => $request->user()->id]);
+
+        Notification::create([
+            'user_id' => $request->user()->id,
+            'shipment_id' => $shipment->id,
+            'type' => 'SHIPMENT_LINKED',
+            'title' => sprintf('Shipment %s linked to your account', $shipment->shipment_number),
+            'body' => sprintf('%s is now monitored on your Customer Portal.', $shipment->cargo_type),
+        ]);
+
+        return redirect()->route('shipments.show', $shipment)
+            ->with('status', sprintf('Shipment %s linked to your account.', $shipment->shipment_number));
     }
 
     /**
@@ -628,16 +900,45 @@ class CargoTraceWebController extends Controller
             ], $corridor['intermediate_stops']),
         ];
 
+        // Hub suggestions for the checkpoint form: transit hubs + active
+        // locations + catalog presets, deduped by name (React allHubSuggestions).
+        $hubSuggestions = collect();
+        $seenHubNames = [];
+        $addHub = function (string $name, string $region, float $lat, float $lng) use (&$hubSuggestions, &$seenHubNames) {
+            $key = strtolower($name);
+            if (isset($seenHubNames[$key])) {
+                return;
+            }
+            $seenHubNames[$key] = true;
+            $hubSuggestions->push(['name' => $name, 'region' => $region, 'latitude' => $lat, 'longitude' => $lng]);
+        };
+        foreach (IndonesianPortCatalog::transitHubs() as $hub) {
+            $addHub($hub['name'], $hub['region'], $hub['latitude'], $hub['longitude']);
+        }
+        foreach (Location::orderBy('id')->get() as $loc) {
+            $addHub(sprintf('%s (%s)', $loc->name, $loc->code), sprintf('%s, %s', $loc->city, $loc->country), (float) $loc->latitude, (float) $loc->longitude);
+        }
+        foreach (IndonesianPortCatalog::presets() as $preset) {
+            $addHub(sprintf('%s (%s)', $preset['name'], $preset['code']), sprintf('%s, %s', $preset['city'], $preset['country']), (float) $preset['latitude'], (float) $preset['longitude']);
+        }
+
         return view('shipments.show', [
             'shipment' => $shipment,
             'delay' => $delay,
             'corridor' => $corridor,
             'globeEntry' => $globeEntry,
             'allowedNext' => $allowedNext,
+            'card' => $this->shipmentCard($shipment),
+            'scenario' => $scenario,
             'provinces' => IndonesianPortCatalog::PROVINCES,
             'portPresets' => IndonesianPortCatalog::presets(),
+            'hubSuggestions' => $hubSuggestions->values()->all(),
             'weather' => [
                 'origin' => $this->telemetryService->fetchCorridorWeather($shipment->origin->latitude, $shipment->origin->longitude),
+                'current' => $this->telemetryService->fetchCorridorWeather(
+                    (float) $globeEntry['current_position']['latitude'],
+                    (float) $globeEntry['current_position']['longitude']
+                ),
                 'destination' => $this->telemetryService->fetchCorridorWeather($shipment->destination->latitude, $shipment->destination->longitude),
             ],
         ]);
@@ -660,14 +961,45 @@ class CargoTraceWebController extends Controller
 
         $lastEvent = $shipment->trackingEvents()->orderByDesc('occurred_at')->first();
 
+        // Smart advance location, mirroring the React handleQuickAdvanceStatus:
+        // DELIVERED lands at the destination, IN_TRANSIT resumes from the
+        // latest transit stop, otherwise the last recorded position.
+        $corridor = $this->lifecycleService->buildOrderedCorridorWaypoints($shipment);
+        $stops = $corridor['intermediate_stops'];
+        $latestMs = $lastEvent ? $lastEvent->occurred_at->getTimestamp() : ($shipment->expected_departure_at?->getTimestamp() ?? time());
+        $occurredAt = \Carbon\Carbon::createFromTimestamp(max(time(), $latestMs + 2 * 3600))->toIso8601String();
+
+        if ($next === Shipment::STATUS_DELIVERED) {
+            $locName = sprintf('%s (%s)', $shipment->destination->name, $shipment->destination->code);
+            $locLat = $shipment->destination->latitude;
+            $locLng = $shipment->destination->longitude;
+            $desc = 'Cargo delivered and POD confirmed at destination port.';
+        } elseif ($next === Shipment::STATUS_IN_TRANSIT && ! empty($stops)) {
+            $latestStop = end($stops);
+            $locName = $latestStop['location_name'];
+            $locLat = $latestStop['latitude'];
+            $locLng = $latestStop['longitude'];
+            $desc = sprintf('Vessel in transit via %s.', $latestStop['location_name']);
+        } elseif ($next === Shipment::STATUS_IN_TRANSIT && $lastEvent !== null && $lastEvent->latitude !== null) {
+            $locName = $lastEvent->location_name;
+            $locLat = $lastEvent->latitude;
+            $locLng = $lastEvent->longitude;
+            $desc = 'Vessel departed on main corridor leg.';
+        } else {
+            $locName = $lastEvent?->location_name ?? $shipment->origin->name;
+            $locLat = $lastEvent?->latitude;
+            $locLng = $lastEvent?->longitude;
+            $desc = sprintf('Lifecycle advanced to %s.', $next);
+        }
+
         try {
             $this->lifecycleService->appendTrackingEvent($shipment, [
                 'event_type' => $next,
-                'occurred_at' => now()->toIso8601String(),
-                'location_name' => $lastEvent?->location_name ?? $shipment->origin->name,
-                'latitude' => $lastEvent?->latitude,
-                'longitude' => $lastEvent?->longitude,
-                'description' => sprintf('Lifecycle advanced to %s.', $next),
+                'occurred_at' => $occurredAt,
+                'location_name' => $locName,
+                'latitude' => $locLat,
+                'longitude' => $locLng,
+                'description' => $desc,
             ], $request->user());
         } catch (InvalidArgumentException $e) {
             return back()->withErrors(['status' => $e->getMessage()]);
@@ -755,11 +1087,21 @@ class CargoTraceWebController extends Controller
 
         AuditLog::create([
             'actor_id' => $request->user()?->id,
-            'action' => 'EXCEPTION_STATUS_CHANGED',
+            'action' => 'exception.status_changed',
             'entity_type' => 'ShipmentException',
             'entity_id' => $exception->id,
             'changes' => ['status' => ['from' => $oldStatus, 'to' => $targetStatus]],
         ]);
+
+        if ($targetStatus === ShipmentException::STATUS_RESOLVED) {
+            Notification::create([
+                'user_id' => $request->user()?->id,
+                'shipment_id' => $exception->shipment_id,
+                'type' => 'EXCEPTION_RESOLVED',
+                'title' => sprintf('%s resolved on %s', ShipmentException::typeLabel($exception->type), $exception->shipment->shipment_number),
+                'body' => 'Resolution recorded by operations.',
+            ]);
+        }
 
         return back()->with('status', sprintf('Exception moved to %s.', $targetStatus));
     }
@@ -782,12 +1124,88 @@ class CargoTraceWebController extends Controller
 
     /**
      * Render the Port Locations & 38 Indonesian Provinces Registry view.
+     * Filtering and quick-add follow the React LocationsListView exactly:
+     * region is ALL / ID_ALL / GLOBAL / a province name; the quick-add
+     * strip suggests catalog presets not yet active.
      */
     public function locationsIndex(Request $request): View
     {
+        $q = trim((string) $request->query('q', ''));
+        $region = trim((string) $request->query('region', 'ALL'));
+        if ($region === '') {
+            $region = 'ALL';
+        }
+
+        $allLocations = Location::orderBy('id')->get();
+        $presets = IndonesianPortCatalog::presets();
+
+        $locations = $allLocations->filter(function (Location $loc) use ($q, $region, $presets) {
+            if ($region === 'ID_ALL' && strtolower($loc->country) !== 'indonesia') {
+                return false;
+            }
+            if ($region === 'GLOBAL' && strtolower($loc->country) === 'indonesia') {
+                return false;
+            }
+            if ($region !== 'ALL' && $region !== 'ID_ALL' && $region !== 'GLOBAL') {
+                $provLower = strtolower($region);
+                $matchesProv = str_contains(strtolower($loc->city), $provLower)
+                    || collect($presets)->contains(fn (array $p) => strtoupper($p['code']) === strtoupper($loc->code) && strtolower($p['province'] ?? '') === $provLower);
+                if (! $matchesProv) {
+                    return false;
+                }
+            }
+            if ($q === '') {
+                return true;
+            }
+            $ql = strtolower($q);
+
+            return str_contains(strtolower($loc->name), $ql)
+                || str_contains(strtolower($loc->code), $ql)
+                || str_contains(strtolower($loc->city), $ql)
+                || str_contains(strtolower($loc->country), $ql);
+        })->values();
+
+        $activeCodes = $allLocations->map(fn (Location $l) => strtoupper($l->code))->all();
+        $available = collect($presets)->reject(fn (array $p) => in_array(strtoupper($p['code']), $activeCodes, true));
+        if ($region === 'ID_ALL') {
+            $available = $available->filter(fn (array $p) => strtolower($p['country']) === 'indonesia');
+        } elseif ($region === 'GLOBAL') {
+            $available = $available->filter(fn (array $p) => strtolower($p['country']) !== 'indonesia');
+        } elseif ($region !== 'ALL') {
+            $available = $available->filter(fn (array $p) => strtolower($p['province'] ?? '') === strtolower($region));
+        }
+
+        if ($q !== '') {
+            $ql = strtolower($q);
+            $quickAdd = $available->filter(fn (array $p) => str_contains(strtolower($p['name']), $ql)
+                || str_contains(strtolower($p['city']), $ql)
+                || str_contains(strtolower($p['code']), $ql)
+                || ($p['province'] && str_contains(strtolower($p['province']), $ql))
+                || str_contains(strtolower($p['country']), $ql))->values()->take(12);
+        } elseif ($region !== 'ALL') {
+            $quickAdd = $available->values()->take(12);
+        } else {
+            $quickAdd = $available->filter(fn (array $p) => ($p['province'] ?? null) === 'Aceh' || $p['country'] === 'Indonesia')->values()->take(6);
+        }
+
         return view('locations.index', [
-            'locations' => Location::orderBy('name')->get(),
+            'locations' => $locations,
+            'allLocations' => $allLocations,
             'provinces' => IndonesianPortCatalog::PROVINCES,
+            'countries' => IndonesianPortCatalog::COUNTRIES,
+            'presets' => $presets,
+            'quickAdd' => $quickAdd,
+            'q' => $q,
+            'region' => $region,
+        ]);
+    }
+
+    public function createLocation(): View
+    {
+        return view('locations.form', [
+            'location' => null,
+            'provinces' => IndonesianPortCatalog::PROVINCES,
+            'countries' => IndonesianPortCatalog::COUNTRIES,
             'presets' => IndonesianPortCatalog::presets(),
         ]);
     }
@@ -806,17 +1224,105 @@ class CargoTraceWebController extends Controller
 
         Location::create($validated);
 
-        return back()->with('status', sprintf('Location %s registered.', $validated['code']));
+        return redirect()->route('locations.index')->with('status', sprintf('Location %s registered.', $validated['code']));
+    }
+
+    public function editLocation(Location $location): View
+    {
+        return view('locations.form', [
+            'location' => $location,
+            'provinces' => IndonesianPortCatalog::PROVINCES,
+            'countries' => IndonesianPortCatalog::COUNTRIES,
+            'presets' => IndonesianPortCatalog::presets(),
+        ]);
+    }
+
+    public function updateLocation(Request $request, Location $location): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:180'],
+            'code' => ['required', 'string', 'max:16', Rule::unique('locations', 'code')->ignore($location->id)],
+            'city' => ['required', 'string', 'max:120'],
+            'province' => ['nullable', 'string', 'max:120'],
+            'country' => ['required', 'string', 'max:120'],
+            'latitude' => ['required', 'numeric', 'between:-90,90'],
+            'longitude' => ['required', 'numeric', 'between:-180,180'],
+        ]);
+
+        $location->update($validated);
+
+        return redirect()->route('locations.index')->with('status', sprintf('Location %s updated.', $validated['code']));
+    }
+
+    /**
+     * Quick-add a catalog preset as an active location.
+     */
+    public function quickAddLocation(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'code' => ['required', 'string', 'max:16'],
+        ]);
+
+        $preset = collect(IndonesianPortCatalog::presets())
+            ->firstWhere('code', strtoupper($validated['code']));
+
+        if ($preset === null) {
+            return back()->withErrors(['code' => 'Unknown catalog preset.']);
+        }
+
+        if (Location::where('code', $preset['code'])->exists()) {
+            return back()->with('status', sprintf('Location %s is already active.', $preset['code']));
+        }
+
+        Location::create([
+            'name' => $preset['name'],
+            'code' => $preset['code'],
+            'city' => $preset['province'] ? $preset['city'].' ('.$preset['province'].')' : $preset['city'],
+            'province' => $preset['province'],
+            'country' => $preset['country'],
+            'latitude' => $preset['latitude'],
+            'longitude' => $preset['longitude'],
+        ]);
+
+        return back()->with('status', sprintf(
+            'Added %s (%s · %s%s) to active port registry.',
+            $preset['name'],
+            $preset['code'],
+            $preset['city'],
+            $preset['province'] ? ', '.$preset['province'] : ''
+        ));
     }
 
     /**
      * Render the Carriers Directory view.
      */
-    public function carriersIndex(): View
+    public function carriersIndex(Request $request): View
     {
+        $q = trim((string) $request->query('q', ''));
+        $mode = trim((string) $request->query('mode', ''));
+
+        $query = Carrier::withCount(['shipments' => fn ($query) => $query->active()]);
+        if ($q !== '') {
+            $query->where(function ($sub) use ($q) {
+                $sub->where('name', 'like', '%'.$q.'%')
+                    ->orWhere('code', 'like', '%'.$q.'%')
+                    ->orWhere('contact_email', 'like', '%'.$q.'%');
+            });
+        }
+        if (in_array($mode, ['SEA', 'AIR', 'ROAD'], true)) {
+            $query->where('service_type', $mode);
+        }
+
         return view('carriers.index', [
-            'carriers' => Carrier::withCount('shipments')->orderBy('name')->get(),
+            'carriers' => $query->orderBy('id')->get(),
+            'q' => $q,
+            'mode' => $mode,
         ]);
+    }
+
+    public function createCarrier(): View
+    {
+        return view('carriers.form', ['carrier' => null]);
     }
 
     public function storeCarrier(Request $request): RedirectResponse
@@ -829,9 +1335,33 @@ class CargoTraceWebController extends Controller
             'is_active' => ['nullable', 'boolean'],
         ]);
 
+        $validated['is_active'] = $request->boolean('is_active');
+
         Carrier::create($validated);
 
-        return back()->with('status', sprintf('Carrier %s registered.', $validated['code']));
+        return redirect()->route('carriers.index')->with('status', sprintf('Carrier %s registered.', $validated['code']));
+    }
+
+    public function editCarrier(Carrier $carrier): View
+    {
+        return view('carriers.form', ['carrier' => $carrier]);
+    }
+
+    public function updateCarrier(Request $request, Carrier $carrier): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'code' => ['required', 'string', 'max:16', Rule::unique('carriers', 'code')->ignore($carrier->id)],
+            'service_type' => ['required', 'string', 'in:SEA,AIR,ROAD'],
+            'contact_email' => ['nullable', 'email', 'max:180'],
+            'is_active' => ['nullable', 'boolean'],
+        ]);
+
+        $validated['is_active'] = $request->boolean('is_active');
+
+        $carrier->update($validated);
+
+        return redirect()->route('carriers.index')->with('status', sprintf('Carrier %s updated.', $validated['code']));
     }
 
     /**
@@ -840,12 +1370,13 @@ class CargoTraceWebController extends Controller
     public function notificationsIndex(Request $request): View
     {
         $notifications = Notification::where('user_id', $request->user()->id)
+            ->with('shipment')
             ->orderByDesc('created_at')
-            ->paginate(15);
+            ->get();
 
         return view('notifications.index', [
             'notifications' => $notifications,
-            'unreadCount' => Notification::where('user_id', $request->user()->id)->whereNull('read_at')->count(),
+            'unreadCount' => $notifications->whereNull('read_at')->count(),
         ]);
     }
 
@@ -872,10 +1403,35 @@ class CargoTraceWebController extends Controller
     /**
      * Render the Immutable Audit Trail view (admin only, route-level).
      */
-    public function auditIndex(): View
+    public function auditIndex(Request $request): View
     {
+        $q = trim((string) $request->query('q', ''));
+        $action = trim((string) $request->query('action', ''));
+
+        $query = AuditLog::with('actor')->orderByDesc('created_at');
+        if ($q !== '') {
+            $query->where(function ($sub) use ($q) {
+                $sub->where('action', 'like', '%'.$q.'%')
+                    ->orWhere('entity_type', 'like', '%'.$q.'%')
+                    ->orWhere('changes', 'like', '%'.$q.'%')
+                    ->orWhereHas('actor', fn ($actor) => $actor->where('name', 'like', '%'.$q.'%'));
+                if (is_numeric($q)) {
+                    $sub->orWhere('entity_id', (int) $q);
+                }
+            });
+        }
+        if ($action !== '') {
+            $query->where('action', $action);
+        }
+
+        $logs = $query->get();
+        $actions = AuditLog::query()->distinct()->orderBy('action')->pluck('action');
+
         return view('audit.index', [
-            'logs' => AuditLog::with('actor')->orderByDesc('created_at')->limit(100)->get(),
+            'logs' => $logs,
+            'actions' => $actions,
+            'q' => $q,
+            'action' => $action,
         ]);
     }
 
@@ -887,20 +1443,34 @@ class CargoTraceWebController extends Controller
         return view('scenario.index', [
             'scenario' => DB::table('scenario_configs')->first(),
             'presets' => config('cargotrace.presets'),
-            'users' => User::orderBy('name')->get(),
+            'users' => User::orderBy('id')->get(),
         ]);
     }
 
     public function updateScenario(Request $request): RedirectResponse
     {
-        $validated = $request->validate([
-            'group_code' => ['required', 'string', 'in:DEFAULT,GROUP_A,GROUP_B,GROUP_C,CUSTOM'],
-            'route_corridor' => ['required', 'string', 'max:180'],
-            'low_threshold_hours' => ['required', 'integer', 'min:1', 'max:168'],
-            'high_threshold_hours' => ['required', 'integer', 'min:2', 'max:720', 'gt:low_threshold_hours'],
-            'primary_exception' => ['required', 'string', 'in:' . implode(',', ShipmentException::TYPES)],
-            'kpi_focus' => ['required', 'string', 'max:180'],
-        ]);
+        // Preset buttons apply a full preset at once (group code, corridor,
+        // thresholds, primary exception, KPI focus) - mirrors the React
+        // preset grid, which applies immediately on click.
+        if ($request->filled('preset')) {
+            $presetCode = $request->string('preset')->toString();
+            $presets = config('cargotrace.presets');
+
+            if (! isset($presets[$presetCode])) {
+                return back()->withErrors(['preset' => 'Unknown scenario preset.']);
+            }
+
+            $validated = $presets[$presetCode];
+        } else {
+            $validated = $request->validate([
+                'group_code' => ['required', 'string', 'in:DEFAULT,GROUP_A,GROUP_B,GROUP_C,CUSTOM'],
+                'route_corridor' => ['required', 'string', 'max:180'],
+                'low_threshold_hours' => ['required', 'integer', 'min:1', 'max:168'],
+                'high_threshold_hours' => ['required', 'integer', 'min:2', 'max:720', 'gt:low_threshold_hours'],
+                'primary_exception' => ['required', 'string', 'in:' . implode(',', ShipmentException::TYPES)],
+                'kpi_focus' => ['required', 'string', 'max:180'],
+            ]);
+        }
 
         $old = DB::table('scenario_configs')->first();
 
@@ -911,7 +1481,7 @@ class CargoTraceWebController extends Controller
 
         AuditLog::create([
             'actor_id' => $request->user()?->id,
-            'action' => 'SCENARIO_UPDATED',
+            'action' => 'scenario.updated',
             'entity_type' => 'ScenarioConfig',
             'entity_id' => 1,
             'changes' => [
@@ -924,36 +1494,59 @@ class CargoTraceWebController extends Controller
         return back()->with('status', 'Delay rule updated. Classifications recalculate immediately.');
     }
 
+    /**
+     * Reset the demo dataset to the seeded state (admin only).
+     * Mirrors the React resetDemoData: rebuild the seed, keep the admin
+     * signed in. The CargoTrace database is dedicated to this demo.
+     */
+    public function resetDemoData(Request $request): RedirectResponse
+    {
+        Artisan::call('migrate:fresh', ['--seed' => true, '--force' => true]);
+
+        return redirect()->route('scenario.index')->with('status', 'Demo dataset reset to the seeded state.');
+    }
+
     public function storeUser(Request $request): RedirectResponse
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'email' => ['required', 'string', 'email', 'max:180', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:8'],
+            'password' => ['nullable', 'string', 'min:8'],
             'role' => ['required', 'string', 'in:ADMIN,LOGISTICS_OPERATOR,CUSTOMER'],
         ]);
+
+        // The reference form has no password field: generate a one-time
+        // temporary password and show it once so the admin can pass it on.
+        $temporaryPassword = $validated['password'] ?? Str::random(12);
 
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
+            'password' => Hash::make($temporaryPassword),
             'role' => $validated['role'],
         ]);
 
         AuditLog::create([
             'actor_id' => $request->user()?->id,
-            'action' => 'USER_CREATED',
+            'action' => 'user.created',
             'entity_type' => 'User',
             'entity_id' => $user->id,
-            'changes' => ['email' => ['from' => null, 'to' => $user->email], 'role' => ['from' => null, 'to' => $user->role]],
+            'changes' => ['role' => ['from' => null, 'to' => $user->role]],
         ]);
 
-        return back()->with('status', sprintf('User %s created.', $user->email));
+        $status = sprintf('User %s created.', $user->email);
+        if (empty($validated['password'])) {
+            $status .= sprintf(' Temporary password: %s', $temporaryPassword);
+        }
+
+        return back()->with('status', $status);
     }
 
-    public function updateUserRole(Request $request, User $user): RedirectResponse
+    public function updateUser(Request $request, User $user): RedirectResponse
     {
         $validated = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'email' => ['required', 'string', 'email', 'max:180', Rule::unique('users', 'email')->ignore($user->id)],
             'role' => ['required', 'string', 'in:ADMIN,LOGISTICS_OPERATOR,CUSTOMER'],
         ]);
 
@@ -962,11 +1555,11 @@ class CargoTraceWebController extends Controller
         }
 
         $oldRole = $user->role;
-        $user->update(['role' => $validated['role']]);
+        $user->update($validated);
 
         AuditLog::create([
             'actor_id' => $request->user()?->id,
-            'action' => 'USER_ROLE_CHANGED',
+            'action' => 'user.updated',
             'entity_type' => 'User',
             'entity_id' => $user->id,
             'changes' => ['role' => ['from' => $oldRole, 'to' => $validated['role']]],

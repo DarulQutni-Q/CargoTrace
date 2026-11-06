@@ -18,8 +18,10 @@ use Illuminate\Support\Facades\Hash;
 class DatabaseSeeder extends Seeder
 {
     /**
-     * Seed the CargoTrace database with users, carriers, global & Indonesian 38-province locations,
-     * shipments, multi-leg checkpoints, exceptions, notifications, and audit logs.
+     * Seed the CargoTrace database with users, carriers, the 6 active port
+     * locations, shipments, multi-leg checkpoints, exceptions, notifications,
+     * and audit logs. The 120-preset Indonesian/global port catalog lives in
+     * IndonesianPortCatalog and is offered as quick-add, not seeded active.
      *
      * The 14 demo shipments mirror the original app's seed plans (BASE_TIME 2026-11-04 12:00 UTC):
      * ids run 1-14 in shipment-number order, so "newest first" (id desc) reproduces the
@@ -55,16 +57,6 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        // Second customer so customer-scoped isolation is demonstrable in the demo.
-        $customer2 = User::updateOrCreate(
-            ['email' => 'dewi@cargotrace.io'],
-            [
-                'name' => 'Dewi Lestari',
-                'password' => Hash::make('password123'),
-                'role' => 'CUSTOMER',
-            ]
-        );
-
         // 2. Seed Default Scenario Rule
         DB::table('scenario_configs')->updateOrInsert(
             ['id' => 1],
@@ -80,12 +72,12 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        // 3. Seed Carriers
+        // 3. Seed Carriers (seed order matches the original app: MAC, NFR, ACL, JVX)
         $carriersData = [
-            ['name' => 'Nusantara Freight', 'code' => 'NFR', 'service_type' => 'SEA', 'contact_email' => 'ops@nusantarafreight.id', 'is_active' => true],
-            ['name' => 'Aurora Container Line', 'code' => 'ACL', 'service_type' => 'SEA', 'contact_email' => 'dispatch@auroracontainers.com', 'is_active' => true],
-            ['name' => 'Meridian Air Cargo', 'code' => 'MAC', 'service_type' => 'AIR', 'contact_email' => 'desk@meridianair.aero', 'is_active' => true],
-            ['name' => 'Java Express Haulage', 'code' => 'JVX', 'service_type' => 'ROAD', 'contact_email' => 'fleet@javaexpress.co.id', 'is_active' => true],
+            ['name' => 'Meridian Air Cargo', 'code' => 'MAC', 'service_type' => 'AIR', 'contact_email' => 'ops@meridianair.example', 'is_active' => true],
+            ['name' => 'Nusantara Freight', 'code' => 'NFR', 'service_type' => 'SEA', 'contact_email' => 'desk@nusantarafreight.example', 'is_active' => true],
+            ['name' => 'Aurora Container Line', 'code' => 'ACL', 'service_type' => 'SEA', 'contact_email' => 'bookings@auroracl.example', 'is_active' => true],
+            ['name' => 'Java Express Haulage', 'code' => 'JVX', 'service_type' => 'ROAD', 'contact_email' => 'control@javaexpress.example', 'is_active' => true],
         ];
 
         $carriers = [];
@@ -93,7 +85,8 @@ class DatabaseSeeder extends Seeder
             $carriers[$c['code']] = Carrier::updateOrCreate(['code' => $c['code']], $c);
         }
 
-        // 4. Seed Core & Regional Indonesian Locations (including Aceh: Krueng Geukuh, Bireuen, Lhokseumawe, Sabang)
+        // 4. Seed Core Locations (the original app's 6 active ports; the Aceh
+        // regional hubs live in the searchable catalog, not in the active registry)
         $locationsData = [
             ['name' => 'Singapore Changi Air Cargo', 'code' => 'SIN', 'city' => 'Singapore', 'province' => null, 'country' => 'Singapore', 'latitude' => 1.3644, 'longitude' => 103.9915],
             ['name' => 'Tanjung Priok Port', 'code' => 'JKT', 'city' => 'Jakarta', 'province' => 'DKI Jakarta', 'country' => 'Indonesia', 'latitude' => -6.1050, 'longitude' => 106.8800],
@@ -101,12 +94,6 @@ class DatabaseSeeder extends Seeder
             ['name' => 'Suvarnabhumi Cargo', 'code' => 'BKK', 'city' => 'Bangkok', 'province' => null, 'country' => 'Thailand', 'latitude' => 13.6900, 'longitude' => 100.7501],
             ['name' => 'Port of Rotterdam', 'code' => 'RTM', 'city' => 'Rotterdam', 'province' => null, 'country' => 'Netherlands', 'latitude' => 51.9496, 'longitude' => 4.1425],
             ['name' => 'Hamburg Airport Cargo', 'code' => 'HAM', 'city' => 'Hamburg', 'province' => null, 'country' => 'Germany', 'latitude' => 53.6304, 'longitude' => 9.9882],
-            ['name' => 'Pelabuhan Krueng Geukuh (Pelindo)', 'code' => 'KRG', 'city' => 'Krueng Geukuh, Kab. Aceh Utara', 'province' => 'Aceh', 'country' => 'Indonesia', 'latitude' => 5.2417, 'longitude' => 97.0264],
-            ['name' => 'Pelabuhan Lhokseumawe & KEK Arun', 'code' => 'LSW', 'city' => 'Kota Lhokseumawe', 'province' => 'Aceh', 'country' => 'Indonesia', 'latitude' => 5.1801, 'longitude' => 97.1507],
-            ['name' => 'Bireuen Logistics & Cargo Terminal', 'code' => 'BIR', 'city' => 'Kab. Bireuen', 'province' => 'Aceh', 'country' => 'Indonesia', 'latitude' => 5.2030, 'longitude' => 96.7009],
-            ['name' => 'Pelabuhan Malahayati Krueng Raya', 'code' => 'MLH', 'city' => 'Banda Aceh / Aceh Besar', 'province' => 'Aceh', 'country' => 'Indonesia', 'latitude' => 5.5967, 'longitude' => 95.5122],
-            ['name' => 'Pelabuhan Bebas Sabang (CT-3 BPKS)', 'code' => 'SBG', 'city' => 'Kota Sabang (Pulau Weh)', 'province' => 'Aceh', 'country' => 'Indonesia', 'latitude' => 5.8897, 'longitude' => 95.3164],
-            ['name' => 'Pelabuhan Belawan International Container Terminal', 'code' => 'BLW', 'city' => 'Kota Medan / Belawan', 'province' => 'Sumatera Utara', 'country' => 'Indonesia', 'latitude' => 3.7844, 'longitude' => 98.6836],
         ];
 
         $locs = [];
@@ -498,13 +485,6 @@ class DatabaseSeeder extends Seeder
                         'description' => 'Carrier telemetry check-in',
                     ],
                 ],
-                'exception' => [
-                    'type' => 'MISROUTED',
-                    'severity' => 'LOW',
-                    'status' => 'RESOLVED',
-                    'detected_at' => '2026-11-01 08:00:00',
-                    'description' => 'Container loaded on the wrong feeder — rerouted at Singapore.',
-                ],
             ],
             [
                 'shipment_number' => 'CT0012NFR',
@@ -624,13 +604,6 @@ class DatabaseSeeder extends Seeder
                         'description' => 'Proof of delivery signed',
                     ],
                 ],
-                'exception' => [
-                    'type' => 'PORT_CONGESTION',
-                    'severity' => 'MEDIUM',
-                    'status' => 'RESOLVED',
-                    'detected_at' => '2026-10-28 10:00:00',
-                    'description' => 'Berth congestion at Hamburg — vessel waited 14h at anchorage.',
-                ],
             ],
             [
                 'shipment_number' => 'CT0014MAC',
@@ -687,19 +660,11 @@ class DatabaseSeeder extends Seeder
                         'description' => 'Proof of delivery signed',
                     ],
                 ],
-                'exception' => [
-                    'type' => 'DAMAGED',
-                    'severity' => 'LOW',
-                    'status' => 'RESOLVED',
-                    'detected_at' => '2026-10-22 09:00:00',
-                    'description' => 'Minor carton damage on one pallet — repacked at origin warehouse.',
-                ],
             ],
         ];
 
         $customersByCode = [
             'CITRA' => $customer->id,
-            'DEWI' => $customer2->id,
         ];
 
         foreach ($seedShipments as $index => $row) {
@@ -823,7 +788,7 @@ class DatabaseSeeder extends Seeder
 
         AuditLog::create([
             'actor_id' => $operator->id,
-            'action' => 'EXCEPTION_CREATED',
+            'action' => 'exception.created',
             'entity_type' => 'ShipmentException',
             'entity_id' => ShipmentException::where('type', 'CUSTOMS_HOLD')->value('id'),
             'changes' => [
@@ -835,7 +800,7 @@ class DatabaseSeeder extends Seeder
 
         AuditLog::create([
             'actor_id' => $operator->id,
-            'action' => 'EXCEPTION_STATUS_CHANGED',
+            'action' => 'exception.status_changed',
             'entity_type' => 'ShipmentException',
             'entity_id' => ShipmentException::where('type', 'WEATHER_DELAY')->value('id'),
             'changes' => [
@@ -846,7 +811,7 @@ class DatabaseSeeder extends Seeder
 
         AuditLog::create([
             'actor_id' => $operator->id,
-            'action' => 'SHIPMENT_STATUS_CHANGED',
+            'action' => 'shipment.status_changed',
             'entity_type' => 'Shipment',
             'entity_id' => Shipment::where('shipment_number', 'CT0008MAC')->value('id'),
             'changes' => [
@@ -857,13 +822,10 @@ class DatabaseSeeder extends Seeder
 
         AuditLog::create([
             'actor_id' => $admin->id,
-            'action' => 'SHIPMENT_CREATED',
+            'action' => 'shipment.created',
             'entity_type' => 'Shipment',
             'entity_id' => Shipment::where('shipment_number', 'CT0001NFR')->value('id'),
-            'changes' => [
-                'shipment_number' => ['from' => null, 'to' => 'CT0001NFR'],
-                'current_status' => ['from' => null, 'to' => 'CREATED'],
-            ],
+            'changes' => null,
             'created_at' => '2026-11-02 12:00:00',
         ]);
     }
