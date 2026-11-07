@@ -71,13 +71,18 @@
       entry.lastUsed = performance.now();
       return entry;
     }
+    // Evict oldest-inserted tiles (a Map keeps insertion order) without
+    // sorting the whole cache on every request: at deep zoom the cache
+    // grows fast and a full sort per tile request janks the frame loop.
+    // Base z2/z3 tiles are never evicted (they are the fallback layer).
     if (tileCache.size > 600) {
-      var entries = Array.from(tileCache.entries())
-        .filter(function (kv) { return kv[0].indexOf('2/') !== 0 && kv[0].indexOf('3/') !== 0 && kv[1].loaded; })
-        .sort(function (a, b) { return a[1].lastUsed - b[1].lastUsed; });
-      for (var i = 0; i < Math.min(120, entries.length); i += 1) {
-        tileCache.delete(entries[i][0]);
-      }
+      var evicted = 0;
+      tileCache.forEach(function (entry, key) {
+        if (evicted >= 120) return;
+        if (key.indexOf('2/') === 0 || key.indexOf('3/') === 0) return;
+        tileCache.delete(key);
+        evicted += 1;
+      });
     }
     var img = new Image();
     entry = { img: img, loaded: false, error: false, lastUsed: performance.now() };
@@ -178,6 +183,36 @@
       z: zUnit,
       visible: zUnit > -0.05
     };
+  }
+
+  /**
+   * Liang-Barsky 2D line segment clipper against viewport rectangle
+   * [minX, minY, maxX, maxY]. Prevents Canvas 2D from rasterizing
+   * 100,000px off-screen dashed paths during deep 2500x street zoom
+   * (ported from the AI Studio Globe3DCanvas rework, b6fc426).
+   */
+  function clipSegmentToViewport(x0, y0, x1, y1, minX, minY, maxX, maxY) {
+    var dx = x1 - x0;
+    var dy = y1 - y0;
+    var t0 = 0;
+    var t1 = 1;
+    var p = [-dx, dx, -dy, dy];
+    var q = [x0 - minX, maxX - x0, y0 - minY, maxY - y0];
+    for (var i = 0; i < 4; i += 1) {
+      if (p[i] === 0) {
+        if (q[i] < 0) return null;
+      } else {
+        var r = q[i] / p[i];
+        if (p[i] < 0) {
+          if (r > t1) return null;
+          if (r > t0) t0 = r;
+        } else {
+          if (r < t0) return null;
+          if (r < t1) t1 = r;
+        }
+      }
+    }
+    return [x0 + t0 * dx, y0 + t0 * dy, x0 + t1 * dx, y0 + t1 * dy];
   }
 
   function greatCirclePoints(from, to, steps) {
@@ -281,9 +316,9 @@
     var zoomLabel = controls.querySelector('[data-globe-zoom-label]');
 
     var autoSpin = false;
-    var zoomScale = 1.08;
     var hitTargets = [];
     var animId = 0;
+    var frameScheduled = false;
     var destroyed = false;
 
     var v = {
@@ -293,17 +328,36 @@
       startLat: 14, startLon: 72, movedDistance: 0, dashPhase: 0
     };
 
-    function setZoomLabel() {
-      if (zoomLabel) zoomLabel.textContent = Math.round(zoomScale * 100) + '% · OSM z' + osmZoomFor(zoomScale);
+    // One coalesced animation-frame slot (same pattern as the React
+    // reference): wheel/pointermove/tile-load handlers only *request* a
+    // frame, they never draw synchronously. Before this fix every wheel
+    // tick and every pointermove drew a full frame immediately AND the
+    // rAF chain drew another one, so each gesture rendered twice.
+    function scheduleRender() {
+      if (destroyed || frameScheduled) return;
+      frameScheduled = true;
+      animId = window.requestAnimationFrame(render);
     }
 
+    var lastZoomLabel = '';
+    function setZoomLabel() {
+      var label = v.zoom >= 10
+        ? Math.round(v.zoom) + 'x · OSM z' + osmZoomFor(v.zoom)
+        : Math.round(v.zoom * 100) + '% · OSM z' + osmZoomFor(v.zoom);
+      if (label !== lastZoomLabel) {
+        lastZoomLabel = label;
+        if (zoomLabel) zoomLabel.textContent = label;
+      }
+    }
+
+    // Zoom range matches the React reference: 0.75x up to 2500x street
+    // level. The port used to clamp at 2.2x, which is why the globe
+    // could not zoom past a regional view (OSM z4). Only the target is
+    // set here; render() eases v.zoom toward it logarithmically.
     function setZoom(next) {
-      next = Math.max(0.75, Math.min(2.2, next));
+      next = Math.max(0.75, Math.min(2500, next));
       v.targetZoom = next;
-      v.zoom = next;
-      zoomScale = Number(next.toFixed(2));
-      setZoomLabel();
-      render();
+      scheduleRender();
     }
 
     function centerOnFocus() {
@@ -326,18 +380,75 @@
           var nextZoom = focusId !== 0 ? 1.18 : 1.08;
           v.targetZoom = nextZoom;
           v.zoom = nextZoom;
-          zoomScale = nextZoom;
           setZoomLabel();
           return;
         }
       }
       v.targetLat = 14; v.targetLon = 72; v.rotLat = 14; v.rotLon = 72;
-      v.targetZoom = 1.08; v.zoom = 1.08; zoomScale = 1.08;
+      v.targetZoom = 1.08; v.zoom = 1.08;
       setZoomLabel();
+    }
+
+    function isNearCoord(a, b, eps) {
+      eps = eps || 0.02;
+      return Math.abs(a[0] - b[0]) < eps && Math.abs(a[1] - b[1]) < eps;
+    }
+
+    // Great-circle geometry is static per shipment (waypoints never move
+    // while the globe is mounted), so the slerp point arrays are computed
+    // once here instead of redoing the trig for every segment on every
+    // frame. Only the per-frame projection (rotation/zoom) stays in render.
+    var arcCache = new Map();
+    function buildArcCache() {
+      arcCache.clear();
+      (shipments || []).forEach(function (shipment) {
+        if (!shipment.origin || !shipment.destination) return;
+        var originCoord = [shipment.origin.latitude, shipment.origin.longitude];
+        var destCoord = [shipment.destination.latitude, shipment.destination.longitude];
+        var rawCandidates = [];
+        if (shipment.checkpoints && shipment.checkpoints.length > 0) {
+          rawCandidates.push.apply(rawCandidates, shipment.checkpoints.slice().reverse());
+        }
+        if (shipment.current_position) rawCandidates.push(shipment.current_position);
+        var intermediateStops = [];
+        rawCandidates.forEach(function (pt) {
+          var coord = [pt.latitude, pt.longitude];
+          if (isNearCoord(coord, originCoord) || isNearCoord(coord, destCoord)) return;
+          var dup = intermediateStops.some(function (ex) {
+            return isNearCoord([ex.latitude, ex.longitude], coord);
+          });
+          if (!dup) intermediateStops.push(pt);
+        });
+        var orderedWaypoints = [originCoord].concat(intermediateStops.map(function (pt) {
+          return [pt.latitude, pt.longitude];
+        }));
+        var hasMovedFromOrigin = orderedWaypoints.length >= 2;
+        var segments = [];
+        var pushSeg = function (start, end, kind) {
+          segments.push({ pts: greatCirclePoints(start, end, 36), dashed: kind !== 'completed', kind: kind });
+        };
+        if (shipment.status === 'DELIVERED') {
+          var allPts = orderedWaypoints.concat([destCoord]);
+          for (var i = 0; i < allPts.length - 1; i += 1) pushSeg(allPts[i], allPts[i + 1], 'completed');
+        } else if (hasMovedFromOrigin) {
+          for (var j = 0; j < orderedWaypoints.length - 1; j += 1) pushSeg(orderedWaypoints[j], orderedWaypoints[j + 1], 'completed');
+          pushSeg(orderedWaypoints[orderedWaypoints.length - 1], destCoord, 'remaining');
+        } else {
+          pushSeg(originCoord, destCoord, 'single');
+        }
+        arcCache.set(shipment.id, {
+          originCoord: originCoord,
+          destCoord: destCoord,
+          intermediateStops: intermediateStops,
+          segments: segments,
+          delivered: shipment.status === 'DELIVERED'
+        });
+      });
     }
 
     function render() {
       if (destroyed) return;
+      frameScheduled = false;
       var ctx = canvas.getContext('2d');
       if (!ctx) return;
       var rect = container.getBoundingClientRect();
@@ -356,7 +467,7 @@
       var needsMoreFrames = false;
       if (!v.dragging) {
         if (autoSpin) {
-          v.targetLon = (((v.targetLon + 0.22 + 180) % 360) - 180);
+          v.targetLon = (((v.targetLon + 0.22 / Math.max(1, Math.sqrt(v.zoom)) + 180) % 360) - 180);
           v.dashPhase = (v.dashPhase + 0.35) % 24;
           needsMoreFrames = true;
         }
@@ -364,7 +475,11 @@
         var dLon = v.targetLon - v.rotLon;
         if (dLon > 180) dLon -= 360;
         if (dLon < -180) dLon += 360;
-        if (Math.abs(dLat) > 0.04 || Math.abs(dLon) > 0.04) {
+        // Rotation easing epsilon shrinks with zoom (React reference):
+        // at street level a fixed 0.04 epsilon snaps the view instead
+        // of easing it.
+        var angularEps = 0.015 / Math.max(1, v.zoom);
+        if (Math.abs(dLat) > angularEps || Math.abs(dLon) > angularEps) {
           v.rotLat += dLat * 0.16;
           v.rotLon += dLon * 0.16;
           needsMoreFrames = true;
@@ -375,13 +490,17 @@
       } else {
         needsMoreFrames = true;
       }
-      var dZoom = v.targetZoom - v.zoom;
-      if (Math.abs(dZoom) > 0.003) {
-        v.zoom += dZoom * 0.2;
+      // Smooth logarithmic zoom interpolation (0.75x up to 2500x street
+      // level, React reference). Linear steps feel dead at deep zoom;
+      // multiplicative easing stays smooth at any scale.
+      var zRatio = v.targetZoom / v.zoom;
+      if (Math.abs(zRatio - 1) > 0.004) {
+        v.zoom *= Math.pow(zRatio, 0.34);
         needsMoreFrames = true;
       } else {
         v.zoom = v.targetZoom;
       }
+      setZoomLabel();
 
       var isDark = document.documentElement.classList.contains('dark');
       var cx = width / 2;
@@ -558,10 +677,10 @@
 
       // 5. Corridor trajectories
       var newHitTargets = [];
-      var isNearCoord = function (a, b, eps) {
-        eps = eps || 0.02;
-        return Math.abs(a[0] - b[0]) < eps && Math.abs(a[1] - b[1]) < eps;
-      };
+      // Scale 3D arc elevation smoothly down as the user zooms in close
+      // to street level (React reference): at 2500x a fixed arch would
+      // tower absurdly over the viewport.
+      var archFactor = Math.min(1, 2.2 / Math.pow(v.zoom, 0.65));
       var sortedShipments = (shipments || []).slice().sort(function (a, b) {
         var aFocus = a.id === focusId ? 1 : 0;
         var bFocus = b.id === focusId ? 1 : 0;
@@ -570,29 +689,13 @@
 
       sortedShipments.forEach(function (shipment) {
         if (!shipment.origin || !shipment.destination) return;
+        var cached = arcCache.get(shipment.id);
+        if (!cached) return;
         var isFocused = focusId !== 0 && shipment.id === focusId;
         var isDimmed = focusId !== 0 && shipment.id !== focusId;
-        var originCoord = [shipment.origin.latitude, shipment.origin.longitude];
-        var destCoord = [shipment.destination.latitude, shipment.destination.longitude];
-
-        var rawCandidates = [];
-        if (shipment.checkpoints && shipment.checkpoints.length > 0) {
-          rawCandidates.push.apply(rawCandidates, shipment.checkpoints.slice().reverse());
-        }
-        if (shipment.current_position) rawCandidates.push(shipment.current_position);
-        var intermediateStops = [];
-        rawCandidates.forEach(function (pt) {
-          var coord = [pt.latitude, pt.longitude];
-          if (isNearCoord(coord, originCoord) || isNearCoord(coord, destCoord)) return;
-          var dup = intermediateStops.some(function (ex) {
-            return isNearCoord([ex.latitude, ex.longitude], coord);
-          });
-          if (!dup) intermediateStops.push(pt);
-        });
-        var orderedWaypoints = [originCoord].concat(intermediateStops.map(function (pt) {
-          return [pt.latitude, pt.longitude];
-        }));
-        var hasMovedFromOrigin = orderedWaypoints.length >= 2;
+        var originCoord = cached.originCoord;
+        var destCoord = cached.destCoord;
+        var intermediateStops = cached.intermediateStops;
 
         var primaryColor = shipment.status === 'DELIVERED'
           ? (isDark ? '#10B981' : '#047857')
@@ -600,20 +703,46 @@
             ? (isDark ? '#F59E0B' : '#D97706')
             : (isDark ? '#C6F432' : '#080B0C');
 
-        var drawElevatedArcSegment = function (start, end, dashed, color, lineWidth, alpha) {
-          var steps = 36;
-          var pts = greatCirclePoints(start, end, steps);
-          if (isFocused) {
-            ctx.save();
+        // Stroke precomputed great-circle points, clipped to the viewport
+        // first: at deep zoom the raw coordinates sit tens of thousands
+        // of px off-screen and Canvas 2D would rasterize the whole
+        // dashed path (Liang-Barsky, React reference).
+        var drawElevatedArcSegment = function (pts, dashed, color, lineWidth, alpha) {
+          var vpPad = 80;
+          var projectPts = function (withArch) {
+            var out = [];
+            for (var i = 0; i < pts.length; i += 1) {
+              var t = i / (pts.length - 1);
+              var archBoost = withArch
+                ? Math.sin(t * Math.PI) * archFactor * (isFocused ? 0.055 : 0.025)
+                : 0;
+              out.push(project3D(pts[i][0], pts[i][1], v.rotLat, v.rotLon, cx, cy, baseRadius, 1.0 + archBoost));
+            }
+            return out;
+          };
+          var strokeClipped = function (projected) {
             ctx.beginPath();
-            var startedShadow = false;
-            pts.forEach(function (coord) {
-              var sp = project3D(coord[0], coord[1], v.rotLat, v.rotLon, cx, cy, baseRadius, 1.0);
-              if (sp.z > 0) {
-                if (!startedShadow) { ctx.moveTo(sp.x, sp.y); startedShadow = true; }
-                else ctx.lineTo(sp.x, sp.y);
-              } else startedShadow = false;
-            });
+            var hasSubpath = false;
+            var lastX = 0;
+            var lastY = 0;
+            for (var i = 0; i < projected.length - 1; i += 1) {
+              var a = projected[i];
+              var b = projected[i + 1];
+              if (a.z <= -0.02 || b.z <= -0.02) { hasSubpath = false; continue; }
+              var clipped = clipSegmentToViewport(a.x, a.y, b.x, b.y, -vpPad, -vpPad, width + vpPad, height + vpPad);
+              if (!clipped) { hasSubpath = false; continue; }
+              if (!hasSubpath || Math.hypot(clipped[0] - lastX, clipped[1] - lastY) > 1.5) {
+                ctx.moveTo(clipped[0], clipped[1]);
+                hasSubpath = true;
+              }
+              ctx.lineTo(clipped[2], clipped[3]);
+              lastX = clipped[2];
+              lastY = clipped[3];
+            }
+          };
+          if (isFocused && archFactor > 0.15) {
+            ctx.save();
+            strokeClipped(projectPts(false));
             ctx.strokeStyle = isDark ? 'rgba(0,0,0,0.45)' : 'rgba(8,11,12,0.14)';
             ctx.lineWidth = lineWidth;
             ctx.stroke();
@@ -628,42 +757,31 @@
             ctx.setLineDash([5, 6]);
             ctx.lineDashOffset = -v.dashPhase;
           }
-          ctx.beginPath();
-          var startedArc = false;
-          pts.forEach(function (coord, idx) {
-            var t = idx / steps;
-            var archBoost = isFocused ? Math.sin(t * Math.PI) * 0.055 : Math.sin(t * Math.PI) * 0.025;
-            var ap = project3D(coord[0], coord[1], v.rotLat, v.rotLon, cx, cy, baseRadius, 1.0 + archBoost);
-            if (ap.z > -0.02) {
-              if (!startedArc) { ctx.moveTo(ap.x, ap.y); startedArc = true; }
-              else ctx.lineTo(ap.x, ap.y);
-            } else startedArc = false;
-          });
+          strokeClipped(projectPts(true));
           ctx.stroke();
           ctx.restore();
         };
 
         var secondary = isDark ? '#525E64' : '#64748B';
-        if (shipment.status === 'DELIVERED') {
-          var allPts = orderedWaypoints.concat([destCoord]);
-          for (var i = 0; i < allPts.length - 1; i += 1) {
-            drawElevatedArcSegment(allPts[i], allPts[i + 1], false,
-              isFocused ? primaryColor : secondary, isFocused ? 3.0 : 1.5, isDimmed ? 0.25 : 0.95);
+        cached.segments.forEach(function (seg) {
+          var isRemaining = seg.kind !== 'completed';
+          var w;
+          var al;
+          if (seg.kind === 'completed') {
+            w = isFocused ? (cached.delivered ? 3.0 : 3.2) : (cached.delivered ? 1.5 : 1.6);
+            al = isDimmed ? (cached.delivered ? 0.25 : 0.28) : (cached.delivered ? 0.95 : 0.98);
+          } else if (seg.kind === 'remaining') {
+            w = isFocused ? 2.2 : 1.3;
+            al = isDimmed ? 0.22 : 0.88;
+          } else {
+            w = isFocused ? 2.6 : 1.4;
+            al = isDimmed ? 0.25 : (isFocused ? 0.92 : 0.55);
           }
-        } else if (hasMovedFromOrigin) {
-          for (var j = 0; j < orderedWaypoints.length - 1; j += 1) {
-            drawElevatedArcSegment(orderedWaypoints[j], orderedWaypoints[j + 1], false,
-              isFocused ? primaryColor : secondary, isFocused ? 3.2 : 1.6, isDimmed ? 0.28 : 0.98);
-          }
-          var latestStop = orderedWaypoints[orderedWaypoints.length - 1];
-          drawElevatedArcSegment(latestStop, destCoord, true,
-            isFocused ? (isDark ? '#D0D8DC' : '#3D4850') : secondary,
-            isFocused ? 2.2 : 1.3, isDimmed ? 0.22 : 0.88);
-        } else {
-          drawElevatedArcSegment(originCoord, destCoord, true,
-            isFocused ? primaryColor : secondary,
-            isFocused ? 2.6 : 1.4, isDimmed ? 0.25 : (isFocused ? 0.92 : 0.55));
-        }
+          var col = isRemaining
+            ? (isFocused && seg.kind === 'remaining' ? (isDark ? '#D0D8DC' : '#3D4850') : (isFocused ? primaryColor : secondary))
+            : (isFocused ? primaryColor : secondary);
+          drawElevatedArcSegment(seg.pts, seg.dashed, col, w, al);
+        });
 
         var drawNode = function (coord, radius, fill, stroke, badgeText, badgeTone) {
           var np = project3D(coord[0], coord[1], v.rotLat, v.rotLon, cx, cy, baseRadius, 1.0);
@@ -742,7 +860,7 @@
       ctx.restore();
 
       if (needsMoreFrames) {
-        animId = window.requestAnimationFrame(render);
+        scheduleRender();
       }
     }
 
@@ -754,20 +872,20 @@
       spinBtn.classList.toggle('text-[var(--ink-2)]', !autoSpin);
       spinIcon.innerHTML = icon(autoSpin ? 'pause' : 'play');
       spinLabel.textContent = autoSpin ? 'Spinning' : 'Auto-spin';
-      render();
+      scheduleRender();
     }
 
     function resetView() {
       v.targetLat = 14; v.targetLon = 72; v.rotLat = 14; v.rotLon = 72;
-      v.targetZoom = 1.08; v.zoom = 1.08; zoomScale = 1.08;
+      v.targetZoom = 1.08; v.zoom = 1.08;
       setZoomLabel();
-      render();
+      scheduleRender();
     }
 
     spinBtn.addEventListener('click', function () { setSpin(!autoSpin); });
     controls.querySelector('[data-globe-reset]').addEventListener('click', resetView);
-    controls.querySelector('[data-globe-zoom-in]').addEventListener('click', function () { setZoom(v.targetZoom + 0.2); });
-    controls.querySelector('[data-globe-zoom-out]').addEventListener('click', function () { setZoom(v.targetZoom - 0.2); });
+    controls.querySelector('[data-globe-zoom-in]').addEventListener('click', function () { setZoom(v.targetZoom * 1.85); });
+    controls.querySelector('[data-globe-zoom-out]').addEventListener('click', function () { setZoom(v.targetZoom / 1.85); });
 
     canvas.addEventListener('pointerdown', function (e) {
       v.dragging = true;
@@ -777,7 +895,7 @@
       v.startLon = v.rotLon;
       v.movedDistance = 0;
       try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* noop */ }
-      render();
+      scheduleRender();
     });
     canvas.addEventListener('pointermove', function (e) {
       if (!v.dragging) return;
@@ -789,7 +907,7 @@
       v.rotLat = Math.max(-70, Math.min(70, v.startLat + dy * sensitivity));
       v.targetLon = v.rotLon;
       v.targetLat = v.rotLat;
-      render();
+      scheduleRender();
     });
     var endDrag = function (e) {
       if (!v.dragging) return;
@@ -808,25 +926,34 @@
         }
         if (hit) onSelectShipment(hit.id);
       }
-      render();
+      scheduleRender();
     };
     canvas.addEventListener('pointerup', endDrag);
     canvas.addEventListener('pointercancel', endDrag);
+    // Double-click zooms 2.4x deeper (React reference).
+    canvas.addEventListener('dblclick', function () { setZoom(v.targetZoom * 2.4); });
+    // Smooth logarithmic wheel zoom up to 2500x (React reference):
+    // each tick multiplies the target, so zooming feels even from
+    // 1x to street level instead of dying out at 2.2x.
     canvas.addEventListener('wheel', function (e) {
       e.preventDefault();
-      setZoom(v.targetZoom - e.deltaY * 0.0012);
+      var factor = Math.exp(-e.deltaY * 0.0022);
+      setZoom(v.targetZoom * factor);
     }, { passive: false });
 
-    var onResize = function () { render(); };
-    var onTheme = function () { render(); };
-    var onLoad = function () { render(); };
-    var onTileLoaded = function () { render(); };
+    var onResize = function () { scheduleRender(); };
+    var onTheme = function () { scheduleRender(); };
+    var onLoad = function () { scheduleRender(); };
+    // Tile loads coalesce into one frame: a burst of tiles arriving
+    // together used to trigger a full render per tile.
+    var onTileLoaded = function () { scheduleRender(); };
     window.addEventListener('resize', onResize);
     window.addEventListener('ct:theme', onTheme);
     window.addEventListener('load', onLoad);
     tileListeners.add(onTileLoaded);
     preloadBaseGlobeTiles();
 
+    buildArcCache();
     centerOnFocus();
     render();
 
@@ -835,6 +962,7 @@
       controls: controls,
       destroy: function () {
         destroyed = true;
+        frameScheduled = false;
         if (animId) window.cancelAnimationFrame(animId);
         window.removeEventListener('resize', onResize);
         window.removeEventListener('ct:theme', onTheme);
