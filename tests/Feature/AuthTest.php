@@ -76,6 +76,46 @@ class AuthTest extends TestCase
         ])->assertUnauthorized();
     }
 
+    public function test_web_login_requires_terms_agreement(): void
+    {
+        User::create(['name' => 'Aria', 'email' => 'admin@cargotrace.io', 'password' => 'password123', 'role' => User::ROLE_ADMIN]);
+
+        // Valid credentials, checkbox unticked: the sign-in must not go
+        // through, even though the API login (no form) stays unaffected.
+        $this->post('/login', [
+            'email' => 'admin@cargotrace.io',
+            'password' => 'password123',
+        ])->assertSessionHasErrors('agree');
+        $this->assertGuest();
+
+        $this->post('/login', [
+            'email' => 'admin@cargotrace.io',
+            'password' => 'password123',
+            'agree' => '1',
+        ])->assertRedirect('/');
+        $this->assertAuthenticatedAs(User::where('email', 'admin@cargotrace.io')->first());
+    }
+
+    public function test_web_register_requires_terms_agreement(): void
+    {
+        $this->post('/register', [
+            'name' => 'Dewi Lestari',
+            'email' => 'dewi@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ])->assertSessionHasErrors('agree');
+        $this->assertDatabaseMissing('users', ['email' => 'dewi@example.com']);
+
+        $this->post('/register', [
+            'name' => 'Dewi Lestari',
+            'email' => 'dewi@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+            'agree' => '1',
+        ])->assertRedirect('/');
+        $this->assertDatabaseHas('users', ['email' => 'dewi@example.com', 'role' => User::ROLE_CUSTOMER]);
+    }
+
     public function test_protected_endpoints_require_a_token_and_logout_revokes_it(): void
     {
         $user = User::create(['name' => 'Aria', 'email' => 'admin@cargotrace.io', 'password' => 'password123', 'role' => User::ROLE_ADMIN]);

@@ -755,19 +755,31 @@ class CargoTraceWebController extends Controller
                 ]);
             }
 
+            // A transit stop appends a CHECKPOINT event — but the edit form
+            // pre-fills the stop from the existing checkpoint, so saving
+            // without touching it must not duplicate the same stop on
+            // every edit. Only a genuinely new stop gets an event.
             if (! empty($validated['transit_stop'])) {
                 $stop = $validated['transit_stop'];
-                $depTime = $shipment->expected_departure_at ?? now();
-                TrackingEvent::create([
-                    'shipment_id' => $shipment->id,
-                    'event_type' => 'CHECKPOINT',
-                    'occurred_at' => $depTime->copy()->addMinutes(5),
-                    'location_name' => $stop['location_name'],
-                    'latitude' => $stop['latitude'],
-                    'longitude' => $stop['longitude'],
-                    'description' => 'Intermediate transit stop added via shipment route editor.',
-                    'created_by' => $request->user()?->id,
-                ]);
+                $alreadyRecorded = $shipment->trackingEvents()
+                    ->where('event_type', 'CHECKPOINT')
+                    ->where('location_name', $stop['location_name'])
+                    ->whereBetween('latitude', [(float) $stop['latitude'] - 0.001, (float) $stop['latitude'] + 0.001])
+                    ->whereBetween('longitude', [(float) $stop['longitude'] - 0.001, (float) $stop['longitude'] + 0.001])
+                    ->exists();
+                if (! $alreadyRecorded) {
+                    $depTime = $shipment->expected_departure_at ?? now();
+                    TrackingEvent::create([
+                        'shipment_id' => $shipment->id,
+                        'event_type' => 'CHECKPOINT',
+                        'occurred_at' => $depTime->copy()->addMinutes(5),
+                        'location_name' => $stop['location_name'],
+                        'latitude' => $stop['latitude'],
+                        'longitude' => $stop['longitude'],
+                        'description' => 'Intermediate transit stop added via shipment route editor.',
+                        'created_by' => $request->user()?->id,
+                    ]);
+                }
             }
         });
 

@@ -106,7 +106,7 @@
                 <h1 class="text-[28px] font-semibold tracking-tight text-[var(--ink-1)]">Get Started Now</h1>
                 <p class="mt-1.5 text-[13px] text-[var(--ink-2)]">Create your customer account to track shipments in real time</p>
 
-                <form method="POST" action="{{ route('register.store') }}" class="mt-6 space-y-4">
+                <form method="POST" action="{{ route('register.store') }}" id="register-form" class="mt-6 space-y-4">
                     @csrf
                     <div>
                         <label for="reg-name" class="mb-1.5 block text-xs font-medium text-[var(--ink-1)]">Name</label>
@@ -148,9 +148,12 @@
                     </div>
 
                     <label class="flex cursor-pointer items-center gap-2.5 pt-0.5 text-xs text-[var(--ink-2)]">
-                        <input type="checkbox" name="agree" value="1" checked class="size-4 rounded border-[var(--line)] bg-[var(--bg-surface)] accent-[#080B0C]" />
+                        <input type="checkbox" id="agree-checkbox" name="agree" value="1" @checked(old('agree', true)) class="size-4 rounded border-[var(--line)] bg-[var(--bg-surface)] accent-[#080B0C]" />
                         <span>I agree to the <span class="text-[var(--ink-1)] underline decoration-[var(--ink-3)] underline-offset-2">Terms &amp; Privacy</span></span>
                     </label>
+                    @error('agree')
+                        <p id="agree-error" class="text-xs text-rose-500">{{ $message }}</p>
+                    @enderror
 
                     <button type="submit" class="mt-2 h-11 w-full cursor-pointer rounded-xl bg-[var(--brand)] text-[13px] font-semibold text-[var(--brand-ink)] shadow-sm transition-colors hover:bg-[var(--brand-hover)] focus-visible:outline-none">Create Account</button>
                 </form>
@@ -198,6 +201,33 @@
             });
         }
         document.addEventListener('DOMContentLoaded', applyThemeLabel);
+        (function () {
+            var form = document.getElementById('register-form');
+            var box = document.getElementById('agree-checkbox');
+            if (!form || !box) return;
+            function showAgreeError() {
+                var err = document.getElementById('agree-error');
+                if (!err) {
+                    err = document.createElement('p');
+                    err.id = 'agree-error';
+                    err.className = 'text-xs text-rose-500';
+                    err.textContent = 'You must agree to the Terms & Privacy to continue.';
+                    box.closest('label').insertAdjacentElement('afterend', err);
+                }
+                err.classList.remove('hidden');
+            }
+            form.addEventListener('submit', function (e) {
+                if (!box.checked) {
+                    e.preventDefault();
+                    showAgreeError();
+                    box.focus();
+                }
+            });
+            box.addEventListener('change', function () {
+                var err = document.getElementById('agree-error');
+                if (box.checked && err) err.classList.add('hidden');
+            });
+        })();
     </script>
 </body>
 </html>

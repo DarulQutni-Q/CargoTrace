@@ -21,9 +21,13 @@ class AuthController extends Controller
 
     public function login(LoginRequest $request): RedirectResponse
     {
-        $validated = $request->validated();
+        // validated() runs the rules (including the Terms & Privacy gate);
+        // the payload itself is not passed to the guard.
+        $request->validated();
 
-        if (! Auth::attempt($validated, $request->boolean('remember'))) {
+        // Only credentials go to the guard: the validated payload also
+        // carries the 'agree' checkbox, which is not a user column.
+        if (! Auth::attempt($request->only('email', 'password'), $request->boolean('remember'))) {
             return back()->withErrors([
                 'email' => 'The provided credentials do not match our records.',
             ])->onlyInput('email');
