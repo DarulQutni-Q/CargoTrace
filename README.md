@@ -30,12 +30,14 @@ Live deployment: **http://43.173.52.180:3000**
   handled, fallback values labelled "cached"). Weather is informational
   only and is never used as delay evidence.
 - **Dashboard** — real data from the database: counts by status, on-time
-  vs delayed by carrier, overdue unpaid-style watch list, recent activity.
+  vs delayed by carrier, a priority attention queue (delayed shipments
+  and open exceptions, worst delay first), and three charts (status mix,
+  by carrier, 6-month corridor volume).
 - **Search & filter** — reference, status, carrier, origin, destination,
   date range, delay status, sorting, server-side pagination (10 per page).
 - **Notifications & audit log** — in-app notifications (unread badge,
   mark read / read all) and an audit trail with actor, action, time,
-  entity and delta.
+  entity and changes.
 - **REST API** — full CRUD under `/api/v1` with Sanctum Bearer tokens,
   one JSON envelope, 200/201/401/403/404/422. The exact unversioned paths
   from the brief (slide 12) work too: `/api/register`, `/api/login`,
@@ -54,7 +56,7 @@ Live deployment: **http://43.173.52.180:3000**
 | Views | Blade + Tailwind via CDN, no build step |
 | Map | Leaflet 1.9.4 + OpenStreetMap tiles |
 | Charts | Chart.js 4.4.1 |
-| Fonts | Plus Jakarta Sans + JetBrains Mono (Google Fonts) |
+| Fonts | Plus Jakarta Sans + IBM Plex Mono (Google Fonts) |
 | Tests | PHPUnit 11 via `php artisan test` (SQLite in-memory) |
 
 Business rules live in one place each: `ShipmentLifecycleService`
@@ -82,7 +84,7 @@ erDiagram
     LOCATIONS ||--o{ SHIPMENTS : "origin / destination"
     SHIPMENTS ||--o{ SHIPMENT_ITEMS : "contains"
     SHIPMENTS ||--o{ TRACKING_EVENTS : "journey history"
-    SHIPMENTS ||--o{ SHIPMENT_EXCEPTIONS : "disruptions"
+    SHIPMENTS ||--o{ EXCEPTIONS : "disruptions"
     USERS ||--o{ TRACKING_EVENTS : "records"
     USERS ||--o{ NOTIFICATIONS : "receives"
     USERS ||--o{ AUDIT_LOGS : "acts in"
@@ -93,15 +95,15 @@ erDiagram
 | Table | Key columns | Notes |
 | --- | --- | --- |
 | users | id, name, email (unique), password (bcrypt), role (ADMIN / LOGISTICS_OPERATOR / CUSTOMER) | Sanctum tokens in `personal_access_tokens` |
-| carriers | id, name, code (unique), service_type (SEA / AIR / ROAD), is_active | |
+| carriers | id, name, code (unique), service_type (SEA / AIR / ROAD), contact_email, is_active | |
 | locations | id, name, code (unique), city, country, province, latitude, longitude | WGS84 coordinates, indexed for map queries |
 | shipments | id, shipment_number (unique), customer_id (FK users), carrier_id (FK), origin_location_id / destination_location_id (FK locations), current_status, cargo_type, weight_kg, volume_m3, expected_departure_at, expected_arrival_at, estimated_arrival_at, archived_at (nullable) | Status enum CREATED/BOOKED/PICKED_UP/IN_TRANSIT/DELIVERED; DELETE archives instead of removing the row |
 | shipment_items | id, shipment_id (FK), description, quantity, weight_kg, volume_m3 | Cargo manifest, at least one item per shipment |
-| tracking_events | id, shipment_id (FK), user_id (FK), status, event_time, location, notes | Append-only; event_time must be after the previous event |
-| exceptions | id, shipment_id (FK), type (6 brief types), severity (LOW/MEDIUM/HIGH), status (OPEN/INVESTIGATING/RESOLVED), detected_at, resolved_at (nullable) | resolved_at is stamped automatically on RESOLVED |
-| notifications | id, user_id (FK), shipment_id (FK, nullable), title, message, is_read | In-app only |
-| audit_logs | id, user_id (FK, nullable), action, entity_type, entity_id, delta (JSON), created_at | Actor, action, time, entity + change delta |
-| scenario_configs | id, name, low_threshold_hours, high_threshold_hours, route, primary_exception, kpi | One active row; edited from the Scenario page |
+| tracking_events | id, shipment_id (FK), event_type, occurred_at, location_name, latitude, longitude, description, created_by (FK users, nullable) | Append-only; occurred_at must be after the previous event |
+| exceptions | id, shipment_id (FK), type (6 brief types), severity (LOW/MEDIUM/HIGH), status (OPEN/INVESTIGATING/RESOLVED), detected_at, resolved_at (nullable), description | resolved_at is stamped automatically on RESOLVED |
+| notifications | id, user_id (FK), shipment_id (FK, nullable), type, title, body, read_at (nullable) | In-app only |
+| audit_logs | id, actor_id (FK users, nullable), action, entity_type, entity_id, changes (JSON, nullable), created_at | Actor, action, time, entity + change set |
+| scenario_configs | id, group_code, route_corridor, low_threshold_hours, high_threshold_hours, primary_exception, kpi_focus | One active row; edited from the Scenario page |
 | sessions / cache / jobs | Laravel framework tables | Session driver and cache store are `database` by default |
 
 ## Setup
@@ -147,10 +149,10 @@ new bookings.
 ## Tests
 
 ```bash
-php artisan test        # 30 tests, 152 assertions: auth, CRUD,
+php artisan test        # 48 tests, 264 assertions: auth, CRUD,
                         # authorization, transitions, chronology, ETA/delay
                         # rule, exceptions, API (incl. the brief's
-                        # unversioned aliases), map data
+                        # unversioned aliases), map data, web flows
 ```
 
 The suite runs on SQLite in-memory for speed; the application itself
