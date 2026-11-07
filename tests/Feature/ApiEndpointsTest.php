@@ -107,6 +107,65 @@ class ApiEndpointsTest extends TestCase
             ->assertJsonStructure(['provinces', 'active_locations', 'catalog_presets']);
     }
 
+    public function test_brief_unversioned_alias_endpoints(): void
+    {
+        // The UAS brief (slide 12) lists the API without a version prefix:
+        // POST /api/register, /api/login, /api/logout, GET /api/user,
+        // /api/shipments (+ CRUD), /api/shipments/{id}/tracking (GET + POST),
+        // /api/carriers, /api/locations, /api/shipments/{id}/exceptions and
+        // PATCH /api/exceptions/{id}. All of these must answer exactly like
+        // their /api/v1 counterparts.
+        $this->postJson('/api/login', [
+            'email' => 'operator@cargotrace.io',
+            'password' => 'password123',
+        ])->assertOk()->assertJsonStructure(['data' => ['token']]);
+
+        $carrier = $this->makeCarrier();
+        $origin = $this->makeLocation('JKT', 'Jakarta', -6.1050, 106.8800);
+        $dest = $this->makeLocation('RTM', 'Rotterdam', 51.9496, 4.1425, 'Netherlands');
+        $shipment = $this->makeShipment($this->customer, $carrier, $origin, $dest);
+
+        $this->withHeaders($this->authHeaders($this->operator))
+            ->getJson('/api/shipments')
+            ->assertOk()
+            ->assertJsonPath('data.total', 1);
+
+        $this->withHeaders($this->authHeaders($this->operator))
+            ->getJson('/api/shipments/' . $shipment->id)
+            ->assertOk()
+            ->assertJsonPath('data.shipment.shipment_number', $shipment->shipment_number);
+
+        $this->withHeaders($this->authHeaders($this->operator))
+            ->postJson('/api/shipments/' . $shipment->id . '/tracking', [
+                'event_type' => 'BOOKED',
+                'occurred_at' => '2026-11-07 09:00:00',
+                'location_name' => 'Tanjung Priok Port',
+            ])
+            ->assertCreated();
+
+        $this->withHeaders($this->authHeaders($this->operator))
+            ->getJson('/api/shipments/' . $shipment->id . '/tracking')
+            ->assertOk()
+            ->assertJsonPath('data.total', 1);
+
+        $this->withHeaders($this->authHeaders($this->operator))
+            ->getJson('/api/shipments/' . $shipment->id . '/exceptions')
+            ->assertOk();
+
+        $this->withHeaders($this->authHeaders($this->operator))
+            ->getJson('/api/carriers')
+            ->assertOk();
+
+        $this->withHeaders($this->authHeaders($this->operator))
+            ->getJson('/api/locations')
+            ->assertOk();
+
+        $this->withHeaders($this->authHeaders($this->operator))
+            ->getJson('/api/user')
+            ->assertOk()
+            ->assertJsonPath('data.email', 'operator@cargotrace.io');
+    }
+
     public function test_shipments_map_endpoint_returns_corridor_waypoints(): void
     {
         $carrier = $this->makeCarrier();

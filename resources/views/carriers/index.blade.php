@@ -2,7 +2,7 @@
 
 @section('title', 'Carriers')
 @section('header_title', 'Carriers')
-@section('header_subtitle', 'Sea, air, and road carriers operating across international shipping corridors')
+@section('header_subtitle', $carriers->count() . ' registered logistics carriers')
 
 @section('content')
 <div class="mx-auto max-w-[1440px] space-y-5 p-3 sm:p-6">
@@ -20,7 +20,10 @@
     @endif
 
     <div class="flex flex-wrap items-center justify-between gap-3">
-        <h2 class="text-sm font-semibold">Carrier directory</h2>
+        <div>
+            <h2 class="text-sm font-semibold">Carrier directory</h2>
+            <p class="mt-0.5 text-xs opacity-70">Sea, air, and road carriers operating across international shipping corridors</p>
+        </div>
         <form method="GET" action="{{ route('carriers.index') }}" class="flex flex-wrap items-center gap-2">
             <input type="text" name="q" value="{{ $q }}" placeholder="Search carrier, code, email..." class="h-8 w-64 rounded-md border border-[var(--line)] bg-[var(--bg-base)] px-2.5 text-xs" />
             <select name="mode" onchange="this.form.submit()" class="h-8 rounded-md border border-[var(--line)] bg-[var(--bg-base)] px-2 text-xs">
@@ -52,7 +55,7 @@
                 <tbody class="divide-y divide-[var(--line)]">
                     @forelse ($carriers as $carrier)
                         <tr>
-                            <td class="px-5 py-3 text-xs font-semibold">{{ $carrier->name }}</td>
+                            <td class="px-5 py-3 text-xs">{{ $carrier->name }}</td>
                             <td class="px-5 py-3 font-mono text-xs">{{ $carrier->code }}</td>
                             <td class="px-5 py-3">@include('partials.badge', ['tone' => 'neutral', 'label' => $carrier->service_type ?: 'SEA'])</td>
                             <td class="px-5 py-3 font-mono text-xs">{{ $carrier->contact_email ?? '—' }}</td>
@@ -60,7 +63,7 @@
                             <td class="px-5 py-3">@include('partials.badge', ['tone' => $carrier->is_active ? 'green' : 'neutral', 'label' => $carrier->is_active ? 'Active' : 'Inactive'])</td>
                             <td class="px-5 py-3 text-right">
                                 @if (auth()->user()->canOperateCorridor())
-                                    <a href="{{ route('carriers.edit', $carrier) }}" class="text-xs font-semibold underline">Edit</a>
+                                    <a href="{{ route('carriers.edit', $carrier) }}" class="text-xs">Edit</a>
                                 @endif
                             </td>
                         </tr>

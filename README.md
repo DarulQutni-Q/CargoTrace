@@ -22,7 +22,9 @@ Live deployment: **http://43.173.52.180:3000**
   PORT_CONGESTION, DAMAGED, MISROUTED, DOCUMENTATION_ISSUE) with severity
   and OPEN → INVESTIGATING → RESOLVED, detection and resolution times.
 - **Map** — Leaflet + OpenStreetMap tiles with attribution, origin /
-  destination markers, transit stops and the corridor route. No API key.
+  destination markers, transit stops and the corridor route. The 3D globe
+  renders real OpenStreetMap raster tiles on the sphere (no vector map).
+  No API key.
 - **External integrations** — Nominatim geocoding and Open-Meteo weather
   through the Laravel HTTP Client (5 s timeout, errors and empty responses
   handled, fallback values labelled "cached"). Weather is informational
@@ -35,14 +37,18 @@ Live deployment: **http://43.173.52.180:3000**
   mark read / read all) and an audit trail with actor, action, time,
   entity and delta.
 - **REST API** — full CRUD under `/api/v1` with Sanctum Bearer tokens,
-  one JSON envelope, 200/201/401/403/404/422. Postman collection in
+  one JSON envelope, 200/201/401/403/404/422. The exact unversioned paths
+  from the brief (slide 12) work too: `/api/register`, `/api/login`,
+  `/api/shipments`, `/api/shipments/{id}/tracking`, `/api/carriers`,
+  `/api/locations`, `/api/shipments/{id}/exceptions`,
+  `PATCH /api/exceptions/{id}`. Postman collection in
   `postman/CargoTrace.postman_collection.json` (login auto-saves the token).
 
 ## Tech stack
 
 | Layer | Choice |
 | --- | --- |
-| Language / framework | PHP 8.2+ (8.3 on the VPS), Laravel 12 |
+| Language / framework | PHP 8.3+, Laravel 12 |
 | Database | MySQL 8 (Docker, localhost-only) |
 | Auth | Laravel Sanctum personal access tokens (API) + session login (web) |
 | Views | Blade + Tailwind via CDN, no build step |
@@ -100,7 +106,7 @@ erDiagram
 
 ## Setup
 
-Requirements: PHP 8.2+ with mbstring, xml, sqlite3, mysql, curl, zip,
+Requirements: PHP 8.3+ with mbstring, xml, sqlite3, mysql, curl, zip,
 bcmath, intl; Composer 2; Docker (for MySQL) or a local MySQL 8 server.
 
 ```bash
@@ -129,21 +135,22 @@ No Node build step: Tailwind, Leaflet and Chart.js load from CDN.
 | Administrator | admin@cargotrace.io |
 | Logistics Operator | operator@cargotrace.io |
 | Customer | customer@cargotrace.io |
-| Customer | dewi@cargotrace.io |
 
 The seeder builds a Southeast Asia → Europe & Indonesian regional
-corridor: 4 carriers (SEA/AIR/ROAD), 12 port locations with WGS84
+corridor: 3 users, 4 carriers (SEA/AIR/ROAD), 6 port locations with WGS84
 coordinates, 14 shipments across every status (on-time and delayed),
-34 tracking events, 6 exceptions covering all six brief types, and 4
-notifications. Newly registered accounts start as Customer with 0
-shipments and can request new bookings.
+14 manifest items, 39 tracking events, 3 exceptions covering three of the
+six brief types, 4 notifications, and 4 audit log entries. Newly
+registered accounts start as Customer with 0 shipments and can request
+new bookings.
 
 ## Tests
 
 ```bash
-php artisan test        # 29 tests, 137 assertions: auth, CRUD,
+php artisan test        # 30 tests, 152 assertions: auth, CRUD,
                         # authorization, transitions, chronology, ETA/delay
-                        # rule, exceptions, API, map data
+                        # rule, exceptions, API (incl. the brief's
+                        # unversioned aliases), map data
 ```
 
 The suite runs on SQLite in-memory for speed; the application itself
@@ -185,19 +192,22 @@ locations.
 
 Delay thresholds, route, primary exception, and KPI come from
 `config/cargotrace.php` + `.env` (`CARGOTRACE_*`) and from the
-**Scenario & users** page (admin only) — never from code. Presets match
-the brief's slide 23 examples:
+**Scenario & users** page (admin only) — never from code. Presets follow
+the AI Studio preview (the brief's slide 23 gives the same thresholds as
+examples, with different example corridors/KPIs per group):
 
 | Preset | Route | Low / High | Primary exception | KPI |
 | --- | --- | --- | --- | --- |
-| DEFAULT | SEA → Europe | 6 h / 24 h | CUSTOMS_HOLD | On-Time Delivery Rate |
-| GROUP_A | SEA → Europe | 12 h / 24 h | CUSTOMS_HOLD | On-Time Delivery Rate |
-| GROUP_B | Asia → North America | 18 h / 36 h | WEATHER_DELAY | Average Delay Duration |
-| GROUP_C | SEA → Australia | 24 h / 48 h | DOCUMENTATION_ISSUE | Exception Resolution Time |
+| DEFAULT | Jakarta / Surabaya → Singapore → Rotterdam / Hamburg | 6 h / 24 h | Port congestion | Average Delay Duration (hours) |
+| GROUP_A | Surabaya → Singapore → Rotterdam | 12 h / 24 h | Port congestion | Average Delay Duration (hours) |
+| GROUP_B | Jakarta → Colombo → Hamburg | 18 h / 36 h | Customs hold | On-Time Delivery Rate (%) |
+| GROUP_C | Bangkok → Dubai → Antwerp | 24 h / 48 h | Weather delay | Shipments with Open Exceptions per Carrier |
 
-Pick the preset for your group on the Scenario page, or set a custom
-rule (high threshold must be greater than low). Changing the rule writes
-a `SCENARIO_UPDATED` audit entry.
+The seeded active rule is DEFAULT 6 h / 24 h, corridor
+"Southeast Asia → Europe", primary exception CUSTOMS_HOLD, KPI
+"On-Time Delivery & Exception Rate". Pick the preset for your group on
+the Scenario page, or set a custom rule (high threshold must be greater
+than low). Changing the rule writes a `scenario.updated` audit entry.
 
 ## Deployment
 

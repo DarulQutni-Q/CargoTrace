@@ -109,14 +109,14 @@
                 <tbody class="divide-y divide-[var(--line)]">
                     @forelse ($locations as $loc)
                         <tr class="hover:bg-[var(--bg-raised)]">
-                            <td class="px-5 py-3 text-xs font-semibold">{{ $loc->name }}</td>
-                            <td class="px-5 py-3 font-mono text-xs font-bold">{{ $loc->code }}</td>
+                            <td class="px-5 py-3 text-xs">{{ $loc->name }}</td>
+                            <td class="px-5 py-3 font-mono text-xs">{{ $loc->code }}</td>
                             <td class="px-5 py-3 text-xs font-medium">{{ $loc->city }}</td>
                             <td class="px-5 py-3 text-xs font-medium">{{ $loc->country }}</td>
                             <td class="px-5 py-3 font-mono text-xs font-medium tabular-nums">{{ number_format($loc->latitude, 4) }}, {{ number_format($loc->longitude, 4) }}</td>
                             <td class="px-5 py-3 text-right">
                                 @if (auth()->user()->canOperateCorridor())
-                                    <a href="{{ route('locations.edit', $loc) }}" class="text-xs font-semibold hover:underline">Edit</a>
+                                    <a href="{{ route('locations.edit', $loc) }}" class="text-xs">Edit</a>
                                 @endif
                             </td>
                         </tr>

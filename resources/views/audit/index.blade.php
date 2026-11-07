@@ -13,14 +13,13 @@
                 <p class="mt-0.5 text-xs opacity-70">Filter state transitions by actor, action type, entity ID, or field delta</p>
             </div>
             <form method="GET" action="{{ route('audit.index') }}" class="flex flex-wrap items-center gap-2">
-                <input type="text" name="q" value="{{ $q }}" placeholder="Search actor, entity, field delta..." class="h-9 w-72 rounded-md border border-[var(--line)] bg-[var(--bg-base)] px-2.5 text-xs" />
+                <input type="text" name="q" value="{{ $q }}" placeholder="Search actor, entity, field delta..." onchange="this.form.submit()" class="h-9 w-72 rounded-md border border-[var(--line)] bg-[var(--bg-base)] px-2.5 text-xs" />
                 <select name="action" onchange="this.form.submit()" class="h-9 rounded-md border border-[var(--line)] bg-[var(--bg-base)] px-2 text-xs">
                     <option value="">All actions ({{ $logs->count() }})</option>
                     @foreach ($actions as $a)
                         <option value="{{ $a }}" {{ $action === $a ? 'selected' : '' }}>{{ $a }}</option>
                     @endforeach
                 </select>
-                <button type="submit" class="inline-flex h-9 items-center rounded-md bg-[#C6F432] px-3 text-xs font-semibold text-[#080B0C]">Filter</button>
                 @if ($q !== '' || $action !== '')
                     <a href="{{ route('audit.index') }}" class="text-xs font-medium underline">Clear</a>
                 @endif

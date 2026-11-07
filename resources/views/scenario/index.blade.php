@@ -44,7 +44,7 @@
             @endforeach
         </form>
 
-        <form method="POST" action="{{ route('scenario.update') }}" class="mt-5 grid grid-cols-1 gap-4 border-t border-[var(--line)] pt-5 sm:grid-cols-2">
+        <form method="POST" action="{{ route('scenario.update') }}" class="mt-5 grid grid-cols-1 gap-4 border-t border-[var(--line)] pt-5 sm:grid-cols-3">
             @csrf
             <input type="hidden" name="group_code" id="scenario_group_code" value="{{ $scenario->group_code ?? 'DEFAULT' }}" />
             <input type="hidden" name="kpi_focus" value="{{ $scenario->kpi_focus ?? 'On-Time Delivery & Exception Rate' }}" />
@@ -68,7 +68,7 @@
                 <label for="route_corridor" class="text-xs font-semibold">Assigned route corridor</label>
                 <input id="route_corridor" name="route_corridor" type="text" required maxlength="180" value="{{ $scenario->route_corridor ?? 'Southeast Asia → Europe' }}" onchange="document.getElementById('scenario_group_code').value = 'CUSTOM'" class="mt-1.5 h-9 w-full rounded-md border border-[var(--line)] bg-[var(--bg-base)] px-2.5 text-xs" />
             </div>
-            <div class="flex justify-end sm:col-span-2">
+            <div class="flex items-end justify-end">
                 <button type="submit" class="inline-flex h-9 items-center rounded-md bg-[#C6F432] px-4 text-xs font-semibold text-[#080B0C]">Save scenario rule</button>
             </div>
         </form>
@@ -124,7 +124,7 @@
                     @foreach ($users as $u)
                         <tr>
                             <td class="py-2.5 pr-3 font-mono text-xs text-[var(--ink-3)]">#{{ $u->id }}</td>
-                            <td class="py-2.5 pr-3 text-xs font-semibold">{{ $u->name }}</td>
+                            <td class="py-2.5 pr-3 text-xs">{{ $u->name }}</td>
                             <td class="py-2.5 pr-3 font-mono text-xs">{{ $u->email }}</td>
                             <td class="py-2.5 pr-3">
                                 @php
@@ -134,7 +134,7 @@
                                 @include('partials.badge', ['tone' => $roleTone, 'label' => $roleLabel])
                             </td>
                             <td class="py-2.5 text-right">
-                                <button type="button" onclick="toggleUserForm({{ $u->id }}, '{{ addslashes($u->name) }}', '{{ $u->email }}', '{{ $u->role }}')" class="text-xs font-medium underline">Edit role</button>
+                                <button type="button" onclick="toggleUserForm({{ $u->id }}, '{{ addslashes($u->name) }}', '{{ $u->email }}', '{{ $u->role }}')" class="text-xs">Edit role</button>
                             </td>
                         </tr>
                     @endforeach

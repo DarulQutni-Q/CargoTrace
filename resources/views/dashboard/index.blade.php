@@ -102,40 +102,40 @@
 
     <!-- 6-KPI Strip -->
     <div class="grid grid-cols-2 divide-y divide-[var(--line)] overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--bg-surface)] sm:grid-cols-3 lg:grid-cols-6 lg:divide-x lg:divide-y-0">
-        <a href="{{ route('shipments.index') }}" class="block p-4 text-left transition-colors hover:bg-[var(--bg-raised)]">
+        <a href="{{ route('shipments.index') }}" class="block px-3 py-4 text-left transition-colors hover:bg-[var(--bg-raised)]">
             <div class="text-xs opacity-70">Total shipments</div>
             <div class="mt-1.5 font-mono text-2xl font-semibold">{{ $metrics['total_shipments'] }}</div>
             <div class="mt-1 text-xs opacity-70">Active corridor units</div>
         </a>
-        <a href="{{ route('shipments.index', ['status' => 'IN_TRANSIT']) }}" class="block p-4 text-left transition-colors hover:bg-[var(--bg-raised)]">
+        <a href="{{ route('shipments.index', ['status' => 'IN_TRANSIT']) }}" class="block px-3 py-4 text-left transition-colors hover:bg-[var(--bg-raised)]">
             <div class="text-xs opacity-70">In transit</div>
             <div class="mt-1.5 font-mono text-2xl font-semibold">{{ $metrics['in_transit'] }}</div>
-            <div class="mt-1 text-xs opacity-70">En route to destination</div>
+            <div class="mt-1 whitespace-nowrap text-xs opacity-70">En route to destination</div>
         </a>
-        <a href="{{ route('shipments.index', ['status' => 'DELIVERED']) }}" class="block p-4 text-left transition-colors hover:bg-[var(--bg-raised)]">
+        <a href="{{ route('shipments.index', ['status' => 'DELIVERED']) }}" class="block px-3 py-4 text-left transition-colors hover:bg-[var(--bg-raised)]">
             <div class="text-xs opacity-70">Delivered</div>
             <div class="mt-1.5 font-mono text-2xl font-semibold">{{ $metrics['delivered'] }}</div>
             <div class="mt-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400">POD confirmed</div>
         </a>
-        <a href="{{ route('shipments.index', ['delayed' => '1']) }}" class="block p-4 text-left transition-colors hover:bg-[var(--bg-raised)]">
+        <a href="{{ route('shipments.index', ['delayed' => '1']) }}" class="block px-3 py-4 text-left transition-colors hover:bg-[var(--bg-raised)]">
             <div class="text-xs opacity-70">Delayed</div>
             <div class="mt-1.5 font-mono text-2xl font-semibold">{{ $metrics['delayed'] }}</div>
             <div class="mt-1 font-mono text-xs font-semibold text-amber-700 dark:text-amber-400">Avg +{{ $metrics['avg_delay_hours'] }}h drift</div>
         </a>
-        <a href="{{ route('shipments.index', ['exceptions' => '1']) }}" class="block p-4 text-left transition-colors hover:bg-[var(--bg-raised)]">
+        <a href="{{ route('shipments.index', ['exceptions' => '1']) }}" class="block px-3 py-4 text-left transition-colors hover:bg-[var(--bg-raised)]">
             <div class="text-xs opacity-70">Open exceptions</div>
             <div class="mt-1.5 font-mono text-2xl font-semibold">{{ $metrics['open_exceptions'] }}</div>
-            <div class="mt-1 text-xs font-semibold text-rose-700 dark:text-rose-400">Unresolved incidents</div>
+            <div class="mt-1 whitespace-nowrap text-xs font-semibold text-rose-700 dark:text-rose-400">Unresolved incidents</div>
         </a>
-        <div class="p-4">
+        <div class="px-3 py-4">
             <div class="text-xs opacity-70">On-time rate</div>
             <div class="mt-1.5 font-mono text-2xl font-semibold">{{ $metrics['on_time_rate'] }}%</div>
             <div class="mt-1 text-xs opacity-70">Corridor SLA</div>
         </div>
     </div>
 
-    <!-- Charts: by status, by carrier, 6-month trend -->
-    <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
+    <!-- Charts: by status, by carrier, 6-month trend (3 columns, like the original) -->
+    <div class="grid grid-cols-1 gap-5 lg:grid-cols-2 xl:grid-cols-3">
         <div class="rounded-lg border border-[var(--line)] bg-[var(--bg-surface)] p-4 sm:p-5">
             <h3 class="text-sm font-semibold">Shipments by lifecycle status</h3>
             <p class="mt-0.5 text-xs opacity-70">Live counts from the database</p>
@@ -146,7 +146,7 @@
             <p class="mt-0.5 text-xs opacity-70">On-time vs delayed, per carrier</p>
             <div class="mt-4 h-60"><canvas id="chart-carrier"></canvas></div>
         </div>
-        <div class="rounded-lg border border-[var(--line)] bg-[var(--bg-surface)] p-4 sm:p-5 lg:col-span-2">
+        <div class="rounded-lg border border-[var(--line)] bg-[var(--bg-surface)] p-4 sm:p-5">
             <h3 class="text-sm font-semibold">6-month corridor volume</h3>
             <p class="mt-0.5 text-xs opacity-70">Shipments departing per month (Jun – Nov)</p>
             <div class="mt-4 h-60"><canvas id="chart-trend"></canvas></div>

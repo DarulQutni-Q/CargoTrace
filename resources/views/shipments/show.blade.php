@@ -792,10 +792,13 @@
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(map);
         const o = corridor.origin, d = corridor.destination;
-        L.marker([o.latitude, o.longitude]).addTo(map)
+        const isDelivered = {{ $shipment->current_status === 'DELIVERED' ? 'true' : 'false' }};
+        const isDelayed = {{ ($delay['delayed'] ?? false) ? 'true' : 'false' }};
+        const destColor = isDelivered ? '#047857' : (isDelayed ? '#D97706' : '#080B0C');
+        L.circleMarker([o.latitude, o.longitude], { radius: 6, color: '#080B0C', weight: 2.2, fillColor: '#FFFFFF', fillOpacity: 1 }).addTo(map)
             .bindPopup('<b>Origin: ' + o.location_name + ' (' + o.code + ')</b><br>' + o.city)
             .bindTooltip('Origin: ' + o.code, { permanent: true, direction: 'left', offset: [-8, 0], className: 'ct-tooltip' });
-        L.marker([d.latitude, d.longitude]).addTo(map)
+        L.circleMarker([d.latitude, d.longitude], { radius: 6.2, color: '#080B0C', weight: 2.2, fillColor: destColor, fillOpacity: 1 }).addTo(map)
             .bindPopup('<b>Destination: ' + d.location_name + ' (' + d.code + ')</b><br>' + d.city)
             .bindTooltip('Dest: ' + d.code, { permanent: true, direction: 'bottom', offset: [0, 8], className: 'ct-tooltip' });
         const latlngs = [[o.latitude, o.longitude]];
@@ -806,9 +809,19 @@
             latlngs.push([stop.latitude, stop.longitude]);
         });
         latlngs.push([d.latitude, d.longitude]);
-        const route = L.polyline(latlngs, { color: '#080B0C', weight: 2.5, dashArray: '7 5' }).addTo(map);
+        // Completed leg solid, remaining leg dashed (same as the index map).
+        const routeBounds = L.latLngBounds(latlngs);
+        if (isDelivered) {
+            L.polyline(latlngs, { color: '#080B0C', weight: 2.5 }).addTo(map);
+        } else if (latlngs.length <= 2) {
+            // Not moved yet: the whole corridor is still remaining.
+            L.polyline(latlngs, { color: '#3D4850', weight: 2.1, dashArray: '5 6' }).addTo(map);
+        } else {
+            L.polyline(latlngs.slice(0, latlngs.length - 1), { color: '#080B0C', weight: 2.5 }).addTo(map);
+            L.polyline(latlngs.slice(latlngs.length - 2), { color: '#3D4850', weight: 2.1, dashArray: '5 6' }).addTo(map);
+        }
         map.invalidateSize();
-        map.fitBounds(route.getBounds(), { padding: [30, 30] });
+        map.fitBounds(routeBounds, { padding: [30, 30] });
         window.addEventListener('load', function () { map.invalidateSize(); });
 
         const globeEntry = @json($globeEntry);

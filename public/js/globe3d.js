@@ -1,11 +1,14 @@
-/* CargoTrace 3D globe — vanilla canvas port of Globe3DCanvas.tsx (commit 46db38f).
+/* CargoTrace 3D globe — vanilla canvas port of Globe3DCanvas.tsx (commit 46db38f),
+ * with the OSM slippy-tile renderer ported from the AI Studio Globe3DCanvas
+ * rework (b6fc426). Real OpenStreetMap raster tiles are projected onto the
+ * orthographic sphere as a subdivided mesh; no self-made vector map.
  *
- * No framework, no WebGL: orthographic projection on a 2D canvas, the same
- * simplified land polygons, elevated great-circle arcs (solid completed leg,
- * dashed remaining leg, surface shadow under the focused corridor), volt
- * checkpoint badges, drag to rotate, wheel/buttons to zoom, auto-spin, and
- * click-to-focus on the live vessel marker. Theme follows the document
- * `dark` class, same as the Leaflet map (re-rendered on `ct:theme`).
+ * No framework, no WebGL: orthographic projection on a 2D canvas, elevated
+ * great-circle arcs (solid completed leg, dashed remaining leg, surface
+ * shadow under the focused corridor), volt checkpoint badges, drag to rotate,
+ * wheel/buttons to zoom, auto-spin, and click-to-focus on the live vessel
+ * marker. Theme follows the document `dark` class, same as the Leaflet map
+ * (re-rendered on `ct:theme`).
  *
  * Wiring (Blade): CargoTraceGlobe.mount(globeContainer, entries, focusId,
  * onSelect) + CargoTraceGlobe.initProjection({...}) for the 2D/3D switcher.
@@ -15,209 +18,143 @@
 (function () {
   'use strict';
 
-  var WORLD_LAND_POLYGONS = [
-  // Sumatra (Aceh: Banda Aceh, Sabang, Bireuen, Lhokseumawe, Krueng Geukuh -> Lampung)
-  [
-    [5.8, 95.2],
-    [5.3, 97.1],
-    [3.8, 98.7],
-    [1.7, 101.4],
-    [-0.5, 103.6],
-    [-3.0, 104.8],
-    [-5.9, 105.8],
-    [-5.5, 104.2],
-    [-3.8, 102.2],
-    [-1.0, 100.3],
-    [2.0, 98.0],
-    [4.1, 96.1],
-    [5.8, 95.2],
-  ],
-  // Java (Merak, Jakarta, Semarang, Surabaya, Banyuwangi)
-  [
-    [-6.0, 106.0],
-    [-6.1, 106.9],
-    [-6.9, 110.4],
-    [-7.2, 112.8],
-    [-8.2, 114.4],
-    [-8.7, 114.0],
-    [-7.8, 110.4],
-    [-7.0, 106.5],
-    [-6.0, 106.0],
-  ],
-  // Kalimantan (Borneo)
-  [
-    [7.0, 116.8],
-    [4.2, 117.9],
-    [1.0, 118.9],
-    [-1.3, 116.8],
-    [-3.4, 114.6],
-    [-3.0, 111.7],
-    [-0.1, 109.3],
-    [2.0, 109.6],
-    [4.9, 114.9],
-    [7.0, 116.8],
-  ],
-  // Sulawesi
-  [
-    [1.5, 125.2],
-    [0.5, 123.0],
-    [-1.5, 121.5],
-    [-5.1, 119.4],
-    [-5.5, 120.5],
-    [-4.0, 122.6],
-    [-1.0, 123.5],
-    [1.5, 125.2],
-  ],
-  // Papua / New Guinea
-  [
-    [-0.8, 131.2],
-    [-2.5, 140.7],
-    [-6.5, 147.8],
-    [-10.2, 150.5],
-    [-9.0, 143.0],
-    [-8.0, 138.0],
-    [-4.5, 134.0],
-    [-0.8, 131.2],
-  ],
-  // Sri Lanka
-  [
-    [9.8, 80.0],
-    [8.5, 81.2],
-    [6.0, 80.2],
-    [6.9, 79.8],
-    [9.8, 80.0],
-  ],
-  // UK & Ireland
-  [
-    [58.6, -5.0],
-    [57.5, -1.8],
-    [51.5, 1.4],
-    [50.1, -5.2],
-    [54.5, -5.9],
-    [58.6, -5.0],
-  ],
-  // Japan
-  [
-    [45.5, 141.9],
-    [40.0, 140.0],
-    [35.6, 140.8],
-    [31.2, 130.6],
-    [34.0, 131.0],
-    [38.0, 139.0],
-    [45.5, 141.9],
-  ],
-  // Eurasia (Western Europe: Rotterdam/Hamburg -> Mediterranean -> Middle East -> India -> SE Asia -> China -> Siberia)
-  [
-    [36.0, -9.0],
-    [43.3, -8.4],
-    [48.4, -4.5],
-    [51.0, 1.8],
-    [51.9, 4.1], // Rotterdam
-    [53.6, 10.0], // Hamburg
-    [57.7, 10.6],
-    [60.0, 5.0],
-    [70.0, 25.0],
-    [68.0, 40.0],
-    [72.0, 70.0],
-    [73.0, 120.0],
-    [66.0, 170.0],
-    [55.0, 160.0],
-    [43.0, 132.0],
-    [38.9, 121.6],
-    [31.2, 121.5], // Shanghai
-    [22.3, 114.2], // Hong Kong
-    [20.8, 106.7],
-    [10.8, 106.7],
-    [13.7, 100.7], // Bangkok
-    [1.3, 103.8], // Singapore / Malay Peninsula
-    [6.5, 100.1],
-    [16.8, 96.2],
-    [22.3, 91.8],
-    [21.5, 87.0],
-    [13.1, 80.3],
-    [8.1, 77.5], // Southern India
-    [19.0, 72.8], // Mumbai
-    [24.9, 67.0], // Karachi
-    [25.5, 57.0],
-    [29.9, 48.5],
-    [25.0, 55.1], // Dubai / Jebel Ali
-    [22.5, 59.5],
-    [12.8, 45.0], // Aden
-    [29.9, 32.5], // Suez
-    [32.0, 34.8],
-    [36.8, 36.2],
-    [41.0, 29.0],
-    [38.0, 23.7],
-    [40.8, 14.3],
-    [43.3, 5.4],
-    [36.0, -5.4],
-    [36.0, -9.0],
-  ],
-  // Africa (Tangier -> Suez / Port Said -> Horn of Africa -> Cape of Good Hope -> West Africa)
-  [
-    [35.8, -5.8],
-    [37.3, 9.8],
-    [31.3, 32.3], // Port Said
-    [11.8, 43.4],
-    [11.8, 51.3],
-    [-4.0, 39.7],
-    [-25.9, 32.6],
-    [-34.4, 18.5],
-    [-22.9, 14.5],
-    [-6.1, 12.4],
-    [4.0, 9.7],
-    [6.4, 3.4],
-    [5.3, -4.0],
-    [14.7, -17.4],
-    [28.0, -13.0],
-    [35.8, -5.8],
-  ],
-  // Australia
-  [
-    [-12.5, 130.8],
-    [-12.0, 142.5],
-    [-19.2, 146.8],
-    [-27.5, 153.0],
-    [-33.9, 151.2],
-    [-38.1, 144.9],
-    [-35.0, 138.5],
-    [-34.0, 115.0],
-    [-32.0, 115.8],
-    [-21.9, 114.1],
-    [-18.0, 122.2],
-    [-12.5, 130.8],
-  ],
-  // North America
-  [
-    [70.0, -160.0],
-    [70.0, -70.0],
-    [47.5, -52.7],
-    [40.7, -74.0],
-    [25.8, -80.2],
-    [19.2, -96.1],
-    [8.9, -79.5],
-    [16.8, -99.9],
-    [34.0, -118.2],
-    [49.3, -123.1],
-    [61.2, -149.9],
-    [70.0, -160.0],
-  ],
-  // South America
-  [
-    [10.5, -75.5],
-    [10.6, -66.9],
-    [-1.4, -48.5],
-    [-8.0, -34.9],
-    [-23.0, -43.2],
-    [-34.6, -58.4],
-    [-54.8, -68.3],
-    [-41.5, -73.0],
-    [-18.5, -70.3],
-    [-12.0, -77.0],
-    [-2.2, -79.9],
-    [10.5, -75.5],
-  ],
-];
+  /* OpenStreetMap slippy-tile globe (ported from the AI Studio
+   * Globe3DCanvas OSM rework, commit b6fc426). Real raster tiles from
+   * https://tile.openstreetmap.org/{z}/{x}/{y}.png, projected onto the
+   * orthographic sphere as a subdivided mesh. No self-made vector map:
+   * when tiles have not loaded yet the sphere shows plain ocean, and
+   * missing tiles fall back to a loaded parent tile, never to polygons.
+   */
+  var MAX_MERCATOR_LAT = 85.05112878;
+
+  var tileCache = new Map();
+  var tileListeners = new Set();
+  var activeTileRequests = 0;
+  var MAX_CONCURRENT_TILE_REQUESTS = 18;
+  var tileRequestQueue = [];
+
+  function notifyTileLoaded() {
+    tileListeners.forEach(function (cb) { cb(); });
+  }
+
+  function processTileQueue() {
+    while (activeTileRequests < MAX_CONCURRENT_TILE_REQUESTS && tileRequestQueue.length > 0) {
+      var next = tileRequestQueue.pop();
+      if (!next) break;
+      var existing = tileCache.get(next.key);
+      if (!existing || existing.loaded || existing.error) continue;
+      activeTileRequests += 1;
+      var img = existing.img;
+      img.onload = function () {
+        activeTileRequests = Math.max(0, activeTileRequests - 1);
+        existing.loaded = true;
+        existing.lastUsed = performance.now();
+        notifyTileLoaded();
+        processTileQueue();
+      };
+      img.onerror = function () {
+        activeTileRequests = Math.max(0, activeTileRequests - 1);
+        existing.error = true;
+        processTileQueue();
+      };
+      img.src = 'https://tile.openstreetmap.org/' + next.z + '/' + next.x + '/' + next.y + '.png';
+    }
+  }
+
+  function requestOsmTile(z, x, y) {
+    var n = 1 << z;
+    var wrappedX = ((x % n) + n) % n;
+    var clampedY = Math.max(0, Math.min(n - 1, y));
+    var key = z + '/' + wrappedX + '/' + clampedY;
+    var entry = tileCache.get(key);
+    if (entry) {
+      entry.lastUsed = performance.now();
+      return entry;
+    }
+    if (tileCache.size > 600) {
+      var entries = Array.from(tileCache.entries())
+        .filter(function (kv) { return kv[0].indexOf('2/') !== 0 && kv[0].indexOf('3/') !== 0 && kv[1].loaded; })
+        .sort(function (a, b) { return a[1].lastUsed - b[1].lastUsed; });
+      for (var i = 0; i < Math.min(120, entries.length); i += 1) {
+        tileCache.delete(entries[i][0]);
+      }
+    }
+    var img = new Image();
+    entry = { img: img, loaded: false, error: false, lastUsed: performance.now() };
+    tileCache.set(key, entry);
+    tileRequestQueue.push({ key: key, z: z, x: wrappedX, y: clampedY });
+    if (tileRequestQueue.length > 64) {
+      tileRequestQueue.splice(0, tileRequestQueue.length - 64);
+    }
+    processTileQueue();
+    return entry;
+  }
+
+  var baseTilesPreloaded = false;
+  function preloadBaseGlobeTiles() {
+    if (baseTilesPreloaded) return;
+    baseTilesPreloaded = true;
+    for (var y = 0; y < 4; y += 1) {
+      for (var x = 0; x < 4; x += 1) {
+        requestOsmTile(2, x, y);
+      }
+    }
+  }
+
+  function lonToTileX(lon, z) {
+    var n = 1 << z;
+    return Math.floor(((((lon + 180) / 360) % 1 + 1) % 1) * n);
+  }
+
+  function latToTileY(lat, z) {
+    var clamped = Math.max(-MAX_MERCATOR_LAT, Math.min(MAX_MERCATOR_LAT, lat));
+    var rad = clamped * DEG2RAD;
+    var n = 1 << z;
+    var merc = Math.log(Math.tan(Math.PI / 4 + rad / 2));
+    return Math.max(0, Math.min(n - 1, Math.floor((1 - merc / Math.PI) * 0.5 * n)));
+  }
+
+  function tileXToLon(x, z) {
+    return (x / (1 << z)) * 360 - 180;
+  }
+
+  function tileYToLat(y, z) {
+    var n = Math.PI - (2 * Math.PI * y) / (1 << z);
+    return (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+  }
+
+  function resolveTileDrawable(z, x, y, allowNetworkFetch) {
+    var n = 1 << z;
+    var wrappedX = ((x % n) + n) % n;
+    var clampedY = Math.max(0, Math.min(n - 1, y));
+    var exactKey = z + '/' + wrappedX + '/' + clampedY;
+    var exact = allowNetworkFetch ? requestOsmTile(z, wrappedX, clampedY) : tileCache.get(exactKey);
+    if (exact && exact.loaded && exact.img.complete && exact.img.naturalWidth > 0) {
+      return { img: exact.img, sx: 0, sy: 0, sw: 256, sh: 256 };
+    }
+    // Fall back up the quadtree to the nearest loaded ancestor tile so the
+    // globe never shows blank holes while zooming or panning.
+    for (var ancZ = z - 1; ancZ >= 2; ancZ -= 1) {
+      var shift = z - ancZ;
+      var ancX = wrappedX >> shift;
+      var ancY = clampedY >> shift;
+      var ancKey = ancZ + '/' + ancX + '/' + ancY;
+      var anc = tileCache.get(ancKey);
+      if (!anc && ancZ === 2) anc = requestOsmTile(2, ancX, ancY);
+      if (anc && anc.loaded && anc.img.complete && anc.img.naturalWidth > 0) {
+        var scale = 1 << shift;
+        var subW = 256 / scale;
+        var subX = (wrappedX - (ancX << shift)) * subW;
+        var subY = (clampedY - (ancY << shift)) * subW;
+        return { img: anc.img, sx: subX, sy: subY, sw: subW, sh: subW };
+      }
+    }
+    return null;
+  }
+
+  function osmZoomFor(zoom) {
+    return Math.max(2, Math.min(15, Math.round(Math.log2(Math.max(0.75, zoom)) + 2.55)));
+  }
 
   var DEG2RAD = Math.PI / 180;
   var STORAGE_KEY = 'cargotrace_map_projection_v1';
@@ -333,7 +270,7 @@
       '</div>' +
       '<div class="rounded border border-[var(--line)] bg-[var(--bg-overlay)] px-2 py-0.5 font-mono text-[10px] text-[var(--ink-3)]">' +
         '<span class="mr-1 inline-block align-[-2px]">' + icon('compass') + '</span>' +
-        '3D Orthographic Globe &middot; <span data-globe-zoom-label>108%</span> &middot; Drag to rotate' +
+        '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener" class="underline">OpenStreetMap</a> contributors &middot; 3D Globe &middot; <span data-globe-zoom-label>108% &middot; OSM z3</span> &middot; Drag to rotate' +
       '</div>';
     var controlsHost = container.parentNode || container;
     controlsHost.appendChild(controls);
@@ -357,7 +294,7 @@
     };
 
     function setZoomLabel() {
-      if (zoomLabel) zoomLabel.textContent = Math.round(zoomScale * 100) + '%';
+      if (zoomLabel) zoomLabel.textContent = Math.round(zoomScale * 100) + '% · OSM z' + osmZoomFor(zoomScale);
     }
 
     function setZoom(next) {
@@ -467,81 +404,150 @@
       ctx.arc(cx, cy, baseRadius * 1.25, 0, Math.PI * 2);
       ctx.fill();
 
-      // 2. Ocean sphere with specular lighting
-      var sphereGrad = ctx.createRadialGradient(cx - baseRadius * 0.3, cy - baseRadius * 0.3, baseRadius * 0.08, cx, cy, baseRadius);
-      if (isDark) {
-        sphereGrad.addColorStop(0, '#182227');
-        sphereGrad.addColorStop(0.65, '#0D1316');
-        sphereGrad.addColorStop(1, '#080B0C');
-      } else {
-        sphereGrad.addColorStop(0, '#FFFFFF');
-        sphereGrad.addColorStop(0.7, '#EEF3F6');
-        sphereGrad.addColorStop(1, '#D5DFE5');
-      }
-      ctx.beginPath();
-      ctx.arc(cx, cy, baseRadius, 0, Math.PI * 2);
-      ctx.fillStyle = sphereGrad;
-      ctx.fill();
+      // 2. Ocean sphere + OpenStreetMap tiles, clipped to the sphere.
+      var osmZ = osmZoomFor(v.zoom);
+      var targetOsmZ = osmZoomFor(v.targetZoom);
+      var zoomRatio = v.targetZoom / v.zoom;
+      var isZoomSettled = Math.abs(zoomRatio - 1) < 0.14;
+      var maxScreenHalfDiag = Math.hypot(cx, cy);
+      var isRimVisible = baseRadius < maxScreenHalfDiag * 1.05;
 
-      // Clip to sphere: graticule + continents
       ctx.save();
-      ctx.beginPath();
-      ctx.arc(cx, cy, baseRadius, 0, Math.PI * 2);
-      ctx.clip();
-
-      // 3. Graticule every 15 degrees
-      var lon, lat, p, started;
-      ctx.strokeStyle = isDark ? 'rgba(255, 255, 255, 0.07)' : 'rgba(8, 11, 12, 0.08)';
-      ctx.lineWidth = 0.8;
-      for (lon = -180; lon < 180; lon += 15) {
+      if (isRimVisible) {
         ctx.beginPath();
-        started = false;
-        for (lat = -75; lat <= 75; lat += 5) {
-          p = project3D(lat, lon, v.rotLat, v.rotLon, cx, cy, baseRadius, 1.0);
-          if (p.z > 0) {
-            if (!started) { ctx.moveTo(p.x, p.y); started = true; }
-            else ctx.lineTo(p.x, p.y);
-          } else started = false;
-        }
-        ctx.stroke();
-      }
-      for (lat = -60; lat <= 60; lat += 15) {
-        ctx.beginPath();
-        started = false;
-        for (lon = -180; lon <= 180; lon += 5) {
-          p = project3D(lat, lon, v.rotLat, v.rotLon, cx, cy, baseRadius, 1.0);
-          if (p.z > 0) {
-            if (!started) { ctx.moveTo(p.x, p.y); started = true; }
-            else ctx.lineTo(p.x, p.y);
-          } else started = false;
-        }
-        ctx.lineWidth = lat === 0 ? 1.2 : 0.8;
-        ctx.strokeStyle = lat === 0
-          ? (isDark ? 'rgba(198, 244, 50, 0.22)' : 'rgba(8, 11, 12, 0.16)')
-          : (isDark ? 'rgba(255, 255, 255, 0.07)' : 'rgba(8, 11, 12, 0.08)');
-        ctx.stroke();
+        ctx.arc(cx, cy, baseRadius, 0, Math.PI * 2);
+        ctx.clip();
       }
 
-      // 4. Land polygons
-      WORLD_LAND_POLYGONS.forEach(function (poly) {
-        ctx.beginPath();
-        var visibleCount = 0;
-        poly.forEach(function (coord, idx) {
-          var pp = project3D(coord[0], coord[1], v.rotLat, v.rotLon, cx, cy, baseRadius, 1.0);
-          if (pp.z > -0.15) visibleCount += 1;
-          if (idx === 0) ctx.moveTo(pp.x, pp.y);
-          else ctx.lineTo(pp.x, pp.y);
-        });
-        ctx.closePath();
-        if (visibleCount >= 2) {
-          ctx.fillStyle = isDark ? 'rgba(198, 244, 50, 0.11)' : '#DCE4E8';
-          ctx.fill();
-          ctx.strokeStyle = isDark ? 'rgba(198, 244, 50, 0.35)' : 'rgba(8, 11, 12, 0.28)';
-          ctx.lineWidth = 1.0;
+      // Ocean base fill inside the sphere (shows while tiles load).
+      ctx.fillStyle = isDark ? '#0D151A' : '#AAD3DF';
+      ctx.fillRect(0, 0, width, height);
+
+      // Dark-mode filter for the tiles (same treatment as the 2D map).
+      if (isDark) {
+        ctx.filter = 'invert(0.86) hue-rotate(180deg) brightness(1.18) contrast(1.22) saturate(1.12)';
+      }
+
+      // Visible geographic bounding box.
+      var sinAngularRadius = Math.min(1, (maxScreenHalfDiag / baseRadius) * 1.08);
+      var angularRadiusDeg = Math.min(89.5, Math.asin(sinAngularRadius) * (180 / Math.PI) * 1.15);
+      var minLat = Math.max(-MAX_MERCATOR_LAT, v.rotLat - angularRadiusDeg);
+      var maxLat = Math.min(MAX_MERCATOR_LAT, v.rotLat + angularRadiusDeg);
+      var nTiles = 1 << osmZ;
+      var yMin = latToTileY(maxLat, osmZ);
+      var yMax = latToTileY(minLat, osmZ);
+      var xMin = 0;
+      var xMax = nTiles - 1;
+      // When zoomed in enough that the pole is not inside the view, restrict
+      // the X tile range to the visible longitudes.
+      if (Math.abs(v.rotLat) + angularRadiusDeg < 82) {
+        var cosLatFactor = Math.max(0.15, Math.cos(v.rotLat * DEG2RAD));
+        var lonSpan = Math.min(179, (angularRadiusDeg / cosLatFactor) * 1.2);
+        xMin = Math.floor(((v.rotLon - lonSpan + 180) / 360) * nTiles);
+        xMax = Math.floor(((v.rotLon + lonSpan + 180) / 360) * nTiles);
+        if (xMax - xMin >= nTiles) { xMin = 0; xMax = nTiles - 1; }
+      }
+
+      // Subdivide low-zoom tiles into a small mesh so spherical curvature
+      // stays smooth; at z >= 5 each tile spans < 11 degrees and is locally
+      // planar on the sphere.
+      var subdiv = osmZ <= 2 ? 4 : osmZ === 3 ? 3 : osmZ === 4 ? 2 : 1;
+      var invSubdiv = 1 / subdiv;
+      var allowTileFetch = isZoomSettled || osmZ === targetOsmZ || osmZ <= 3;
+
+      for (var ty = yMin; ty <= yMax; ty += 1) {
+        for (var tx = xMin; tx <= xMax; tx += 1) {
+          var wrappedTx = ((tx % nTiles) + nTiles) % nTiles;
+          var drawable = resolveTileDrawable(osmZ, wrappedTx, ty, allowTileFetch);
+          if (!drawable) continue;
+          for (var syIdx = 0; syIdx < subdiv; syIdx += 1) {
+            var latN = tileYToLat(ty + syIdx * invSubdiv, osmZ);
+            var latS = tileYToLat(ty + (syIdx + 1) * invSubdiv, osmZ);
+            for (var sxIdx = 0; sxIdx < subdiv; sxIdx += 1) {
+              var lonW = tileXToLon(wrappedTx + sxIdx * invSubdiv, osmZ);
+              var lonE = tileXToLon(wrappedTx + (sxIdx + 1) * invSubdiv, osmZ);
+              var pNW = project3D(latN, lonW, v.rotLat, v.rotLon, cx, cy, baseRadius, 1.0);
+              var pNE = project3D(latN, lonE, v.rotLat, v.rotLon, cx, cy, baseRadius, 1.0);
+              var pSW = project3D(latS, lonW, v.rotLat, v.rotLon, cx, cy, baseRadius, 1.0);
+              var pSE = project3D(latS, lonE, v.rotLat, v.rotLon, cx, cy, baseRadius, 1.0);
+              // Skip back-facing patches.
+              if (pNW.z < -0.05 && pNE.z < -0.05 && pSW.z < -0.05 && pSE.z < -0.05) continue;
+              // Frustum-cull patches completely outside the screen.
+              var patchMinX = Math.min(pNW.x, pNE.x, pSW.x, pSE.x);
+              var patchMaxX = Math.max(pNW.x, pNE.x, pSW.x, pSE.x);
+              var patchMinY = Math.min(pNW.y, pNE.y, pSW.y, pSE.y);
+              var patchMaxY = Math.max(pNW.y, pNE.y, pSW.y, pSE.y);
+              if (patchMaxX < -32 || patchMinX > width + 32 || patchMaxY < -32 || patchMinY > height + 32) continue;
+              var patchSx = drawable.sx + sxIdx * invSubdiv * drawable.sw;
+              var patchSy = drawable.sy + syIdx * invSubdiv * drawable.sh;
+              var patchSw = drawable.sw * invSubdiv;
+              var patchSh = drawable.sh * invSubdiv;
+              // Average the top/bottom and left/right vectors for a seamless
+              // spherical quad fit.
+              var ux = (pNE.x - pNW.x + (pSE.x - pSW.x)) * 0.5;
+              var uy = (pNE.y - pNW.y + (pSE.y - pSW.y)) * 0.5;
+              var vx = (pSW.x - pNW.x + (pSE.x - pNE.x)) * 0.5;
+              var vy = (pSW.y - pNW.y + (pSE.y - pNE.y)) * 0.5;
+              var ox = (pNW.x + pSE.x - ux - vx) * 0.5;
+              var oy = (pNW.y + pSE.y - uy - vy) * 0.5;
+              ctx.setTransform(
+                dpr * (ux / patchSw),
+                dpr * (uy / patchSw),
+                dpr * (vx / patchSh),
+                dpr * (vy / patchSh),
+                dpr * ox,
+                dpr * oy
+              );
+              // Slight overlap prevents 1px sub-pixel seams between patches.
+              var bleed = subdiv > 1 ? 1.022 : 1.006;
+              ctx.drawImage(drawable.img, patchSx, patchSy, patchSw, patchSh, 0, 0, patchSw * bleed, patchSh * bleed);
+            }
+          }
+        }
+      }
+
+      // Reset transform & filter for the spherical lighting overlay.
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.filter = 'none';
+
+      // 3. Spherical specular & limb-darkening overlay.
+      var gradRadius = Math.min(baseRadius, maxScreenHalfDiag * 1.35);
+      var shadeStrength = Math.max(0.14, Math.min(1, 3.2 / Math.sqrt(v.zoom)));
+      var shadeGrad = ctx.createRadialGradient(
+        cx - gradRadius * 0.25, cy - gradRadius * 0.25, gradRadius * 0.1,
+        cx, cy, gradRadius
+      );
+      if (isDark) {
+        shadeGrad.addColorStop(0, 'rgba(255, 255, 255, 0.02)');
+        shadeGrad.addColorStop(0.72, 'rgba(8, 11, 12, 0.05)');
+        shadeGrad.addColorStop(1, 'rgba(4, 6, 7, ' + (0.55 * shadeStrength).toFixed(2) + ')');
+      } else {
+        shadeGrad.addColorStop(0, 'rgba(255, 255, 255, 0.06)');
+        shadeGrad.addColorStop(0.75, 'rgba(8, 11, 12, 0.02)');
+        shadeGrad.addColorStop(1, 'rgba(8, 11, 12, ' + (0.26 * shadeStrength).toFixed(2) + ')');
+      }
+      ctx.fillStyle = shadeGrad;
+      ctx.fillRect(0, 0, width, height);
+
+      // Subtle graticule (global/regional zoom only).
+      if (osmZ <= 6) {
+        ctx.strokeStyle = isDark ? 'rgba(198, 244, 50, 0.08)' : 'rgba(8, 11, 12, 0.06)';
+        ctx.lineWidth = 0.65;
+        for (var glon = -180; glon < 180; glon += 30) {
+          ctx.beginPath();
+          var gStarted = false;
+          for (var glat = -75; glat <= 75; glat += 6) {
+            var gp = project3D(glat, glon, v.rotLat, v.rotLon, cx, cy, baseRadius, 1.0);
+            if (gp.z > 0) {
+              if (!gStarted) { ctx.moveTo(gp.x, gp.y); gStarted = true; }
+              else ctx.lineTo(gp.x, gp.y);
+            } else gStarted = false;
+          }
           ctx.stroke();
         }
-      });
-      ctx.restore();
+      }
+
+      ctx.restore(); // End sphere clip
 
       // Rim ring
       ctx.beginPath();
@@ -814,9 +820,12 @@
     var onResize = function () { render(); };
     var onTheme = function () { render(); };
     var onLoad = function () { render(); };
+    var onTileLoaded = function () { render(); };
     window.addEventListener('resize', onResize);
     window.addEventListener('ct:theme', onTheme);
     window.addEventListener('load', onLoad);
+    tileListeners.add(onTileLoaded);
+    preloadBaseGlobeTiles();
 
     centerOnFocus();
     render();
@@ -830,6 +839,7 @@
         window.removeEventListener('resize', onResize);
         window.removeEventListener('ct:theme', onTheme);
         window.removeEventListener('load', onLoad);
+        tileListeners.delete(onTileLoaded);
         if (canvas.parentNode) canvas.parentNode.removeChild(canvas);
         if (controls.parentNode) controls.parentNode.removeChild(controls);
       }

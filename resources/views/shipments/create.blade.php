@@ -122,6 +122,7 @@
             <div id="route-preview" class="mt-4 hidden space-y-2 rounded-md border border-[var(--line)] bg-[var(--bg-base)] px-3.5 py-2.5 text-xs">
                 <div class="flex flex-wrap items-center gap-1.5 font-mono text-[11px]">
                     <span id="preview-origin" class="rounded border border-[var(--line)] bg-[var(--bg-surface)] px-1.5 py-0.5 font-bold"></span>
+                    <span id="preview-base-arrow" class="font-bold text-[var(--ink-2)]">→</span>
                     <span id="preview-via-arrow" class="hidden font-bold text-[var(--ink-2)]">━━▶</span>
                     <span id="preview-via" class="hidden rounded border border-[#080B0C] bg-[#C6F432] px-1.5 py-0.5 font-bold text-[#080B0C]"></span>
                     <span id="preview-via-arrow2" class="hidden font-bold text-[var(--ink-3)]">╌╌▶</span>
@@ -304,6 +305,7 @@
         document.getElementById('preview-dest').textContent = dest.code + ' · ' + dest.city;
         document.getElementById('preview-via').textContent = '● ' + transitName;
         document.getElementById('preview-via').classList.toggle('hidden', !hasTransit);
+        document.getElementById('preview-base-arrow').classList.toggle('hidden', hasTransit);
         document.getElementById('preview-via-arrow').classList.toggle('hidden', !hasTransit);
         document.getElementById('preview-via-arrow2').classList.toggle('hidden', !hasTransit);
         document.getElementById('preview-km').textContent = Math.round(km).toLocaleString() + ' km';

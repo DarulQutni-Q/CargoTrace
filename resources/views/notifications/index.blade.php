@@ -35,14 +35,14 @@
                     <h3 class="mt-2 text-sm font-medium">{{ $n->title }}</h3>
                     <p class="mt-0.5 text-xs leading-relaxed opacity-80">{{ $n->body }}</p>
                 </div>
-                <div class="flex shrink-0 flex-col items-end gap-2">
+                <div class="flex shrink-0 items-center gap-3">
                     @if ($n->shipment)
                         <a href="{{ route('shipments.show', $n->shipment) }}" class="rounded-md border border-[var(--line)] bg-[var(--bg-base)] px-2.5 py-1 font-mono text-[11px] font-semibold">{{ $n->shipment->shipment_number }} →</a>
                     @endif
                     @if (! $n->read_at)
                         <form method="POST" action="{{ route('notifications.read', $n) }}">
                             @csrf
-                            <button type="submit" class="text-xs font-medium">Mark read</button>
+                            <button type="submit" class="whitespace-nowrap text-xs font-medium">Mark read</button>
                         </form>
                     @endif
                 </div>

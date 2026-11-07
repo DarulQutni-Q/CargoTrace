@@ -90,3 +90,63 @@ Route::prefix('v1')->group(function () {
         Route::get('/locations/catalog', [ShipmentApiController::class, 'locationsCatalog'])->name('api.v1.locations.catalog');
     });
 });
+
+/*
+|--------------------------------------------------------------------------
+| Unversioned aliases — the exact paths from the UAS brief (slide 12).
+| Same controllers, same Sanctum guard, same JSON envelope as /api/v1.
+| The brief lists POST /api/shipments/{id}/tracking (not /tracking-events)
+| and /api/... without a version prefix; both spellings work.
+|--------------------------------------------------------------------------
+*/
+Route::post('/register', [AuthController::class, 'register'])->name('api.register');
+Route::post('/login', [AuthController::class, 'login'])->name('api.login');
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/logout', [AuthController::class, 'logout'])->name('api.logout');
+    Route::get('/user', [AuthController::class, 'user'])->name('api.user');
+
+    // Shipments
+    Route::get('/shipments', [ShipmentApiController::class, 'index'])->name('api.shipments.index');
+    Route::get('/shipments/{shipment}', [ShipmentApiController::class, 'show'])
+        ->whereNumber('shipment')
+        ->name('api.shipments.show');
+    Route::post('/shipments', [ShipmentApiController::class, 'store'])->name('api.shipments.store');
+    Route::match(['put', 'patch'], '/shipments/{shipment}', [ShipmentApiController::class, 'update'])
+        ->whereNumber('shipment')
+        ->name('api.shipments.update');
+    Route::delete('/shipments/{shipment}', [ShipmentApiController::class, 'destroy'])
+        ->whereNumber('shipment')
+        ->name('api.shipments.destroy');
+
+    // Tracking timeline (append-only history)
+    Route::get('/shipments/{shipment}/tracking', [ShipmentApiController::class, 'tracking'])
+        ->whereNumber('shipment')
+        ->name('api.shipments.tracking.index');
+    Route::post('/shipments/{shipment}/tracking', [ShipmentApiController::class, 'storeTrackingEvent'])
+        ->whereNumber('shipment')
+        ->name('api.shipments.tracking.store');
+
+    // Exceptions
+    Route::get('/shipments/{shipment}/exceptions', [ExceptionController::class, 'index'])
+        ->whereNumber('shipment')
+        ->name('api.shipments.exceptions.index');
+    Route::post('/shipments/{shipment}/exceptions', [ShipmentApiController::class, 'storeException'])
+        ->whereNumber('shipment')
+        ->name('api.shipments.exceptions.store');
+    Route::patch('/exceptions/{exception}', [ExceptionController::class, 'update'])
+        ->whereNumber('exception')
+        ->name('api.exceptions.update');
+
+    // Carriers
+    Route::get('/carriers', [CarrierController::class, 'index'])->name('api.carriers.index');
+    Route::post('/carriers', [CarrierController::class, 'store'])
+        ->middleware('role:ADMIN,LOGISTICS_OPERATOR')
+        ->name('api.carriers.store');
+
+    // Locations
+    Route::get('/locations', [LocationController::class, 'index'])->name('api.locations.index');
+    Route::post('/locations', [LocationController::class, 'store'])
+        ->middleware('role:ADMIN,LOGISTICS_OPERATOR')
+        ->name('api.locations.store');
+});

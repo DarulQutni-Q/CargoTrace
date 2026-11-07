@@ -19,7 +19,22 @@
     <script>
         // Tailwind Play CDN: dark: variants must follow the .dark class on <html>
         // (same as the original's tailwind.config), not the OS colour scheme.
-        tailwind.config = { darkMode: 'class' };
+        // fontFamily here is what makes the Play CDN generate its preflight
+        // and font-sans/font-mono utilities with Plus Jakarta Sans / IBM Plex
+        // Mono. Without it the CDN injects its default ui-sans-serif stack
+        // AFTER our <style> block and the whole app renders in the fallback
+        // font (wider: header subtitles truncate, KPI subtitles wrap).
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+                        mono: ['IBM Plex Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+                    },
+                },
+            },
+        };
         // Apply the saved theme before first paint (avoids a white flash in dark mode).
         try {
             if (localStorage.getItem('cargotrace_theme_v1') === 'dark') document.documentElement.classList.add('dark');
