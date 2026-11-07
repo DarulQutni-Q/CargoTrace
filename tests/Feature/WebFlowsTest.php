@@ -393,4 +393,37 @@ class WebFlowsTest extends TestCase
         $this->actingAs($this->customer)->get('/shipments/' . $shipment->id . '/bill-of-lading')->assertOk();
         $this->actingAs($this->customer)->get('/shipments/' . $others->id . '/bill-of-lading')->assertForbidden();
     }
+
+    public function test_web_shipment_focus_returns_inspector_html(): void
+    {
+        $a = $this->makeShipment($this->customer, $this->carrier, $this->origin, $this->dest);
+        $b = $this->makeShipment($this->customer, $this->carrier, $this->origin, $this->dest);
+
+        $response = $this->actingAs($this->admin)->getJson('/shipments/' . $b->id . '/focus');
+
+        $response->assertOk()->assertJsonStructure(['html']);
+        $response->assertSee($b->shipment_number);
+        $response->assertSee('Inspect shipment');
+        $response->assertDontSee($a->shipment_number);
+    }
+
+    public function test_web_shipment_focus_respects_visibility(): void
+    {
+        $mine = $this->makeShipment($this->customer, $this->carrier, $this->origin, $this->dest);
+        $others = $this->makeShipment($this->admin, $this->carrier, $this->origin, $this->dest);
+
+        $this->actingAs($this->customer)->getJson('/shipments/' . $mine->id . '/focus')->assertOk();
+        $this->actingAs($this->customer)->getJson('/shipments/' . $others->id . '/focus')->assertNotFound();
+    }
+
+    public function test_web_shipment_focus_requires_auth_and_rejects_archived(): void
+    {
+        $shipment = $this->makeShipment($this->customer, $this->carrier, $this->origin, $this->dest);
+
+        $this->get('/shipments/' . $shipment->id . '/focus')->assertRedirect('/login');
+
+        $shipment->update(['archived_at' => now()]);
+
+        $this->actingAs($this->admin)->getJson('/shipments/' . $shipment->id . '/focus')->assertNotFound();
+    }
 }

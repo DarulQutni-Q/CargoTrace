@@ -31,6 +31,7 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/', [CargoTraceWebController::class, 'dashboard'])->name('dashboard');
     Route::get('/shipments', [CargoTraceWebController::class, 'shipmentsIndex'])->name('shipments.index');
+    Route::get('/shipments/{shipment}/focus', [CargoTraceWebController::class, 'shipmentFocus'])->name('shipments.focus');
     Route::get('/shipments/create', [CargoTraceWebController::class, 'createShipment'])->name('shipments.create');
     Route::post('/shipments', [CargoTraceWebController::class, 'storeShipment'])->name('shipments.store');
     Route::post('/shipments/claim', [CargoTraceWebController::class, 'claimShipment'])->name('shipments.claim');

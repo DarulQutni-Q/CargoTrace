@@ -17,6 +17,7 @@ use App\Services\DelayClassifierService;
 use App\Services\ExternalTelemetryService;
 use App\Services\IndonesianPortCatalog;
 use App\Services\ShipmentLifecycleService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
@@ -268,6 +269,27 @@ class CargoTraceWebController extends Controller
             'locations' => Location::all(),
             'mapEntries' => $mapEntries,
             'filters' => $request->only(['q', 'status', 'carrier_id', 'origin_location_id', 'destination_location_id', 'date_from', 'date_to', 'delayed', 'exceptions', 'sort', 'view', 'focus']),
+        ]);
+    }
+
+    /**
+     * Instant focus payload for the shipments split view: the inspector card
+     * for one shipment, rendered with the same Blade partial as the initial
+     * page load, so a feed-row or map-marker click can swap it in without a
+     * full page reload (React-style). Same visibility scoping as the index:
+     * customers only ever see their own shipments, archived rows 404.
+     */
+    public function shipmentFocus(Request $request, Shipment $shipment): JsonResponse
+    {
+        $shipment = Shipment::with(['origin', 'destination', 'carrier', 'trackingEvents', 'exceptions'])
+            ->active()
+            ->visibleTo($request->user())
+            ->findOrFail($shipment->id);
+
+        return response()->json([
+            'html' => view('shipments.partials.inspector', [
+                'focused' => $this->shipmentCard($shipment),
+            ])->render(),
         ]);
     }
 

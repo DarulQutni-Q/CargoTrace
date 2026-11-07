@@ -328,6 +328,10 @@
       startLat: 14, startLon: 72, movedDistance: 0, dashPhase: 0
     };
 
+    // Focused shipment id, mutable after mount: setFocus() (called when a
+    // feed row or marker is clicked) recenters the globe without a reload.
+    var currentFocusId = focusId;
+
     // One coalesced animation-frame slot (same pattern as the React
     // reference): wheel/pointermove/tile-load handlers only *request* a
     // frame, they never draw synchronously. Before this fix every wheel
@@ -361,8 +365,8 @@
     }
 
     function centerOnFocus() {
-      var target = focusId !== 0
-        ? (shipments || []).filter(function (s) { return s.id === focusId; })[0]
+      var target = currentFocusId !== 0
+        ? (shipments || []).filter(function (s) { return s.id === currentFocusId; })[0]
         : (shipments || [])[0];
       if (target) {
         var pts = [];
@@ -377,7 +381,7 @@
           v.targetLon = avgLon;
           v.rotLat = clampedLat;
           v.rotLon = avgLon;
-          var nextZoom = focusId !== 0 ? 1.18 : 1.08;
+          var nextZoom = currentFocusId !== 0 ? 1.18 : 1.08;
           v.targetZoom = nextZoom;
           v.zoom = nextZoom;
           setZoomLabel();
@@ -682,8 +686,8 @@
       // tower absurdly over the viewport.
       var archFactor = Math.min(1, 2.2 / Math.pow(v.zoom, 0.65));
       var sortedShipments = (shipments || []).slice().sort(function (a, b) {
-        var aFocus = a.id === focusId ? 1 : 0;
-        var bFocus = b.id === focusId ? 1 : 0;
+        var aFocus = a.id === currentFocusId ? 1 : 0;
+        var bFocus = b.id === currentFocusId ? 1 : 0;
         return aFocus - bFocus;
       });
 
@@ -691,8 +695,8 @@
         if (!shipment.origin || !shipment.destination) return;
         var cached = arcCache.get(shipment.id);
         if (!cached) return;
-        var isFocused = focusId !== 0 && shipment.id === focusId;
-        var isDimmed = focusId !== 0 && shipment.id !== focusId;
+        var isFocused = currentFocusId !== 0 && shipment.id === currentFocusId;
+        var isDimmed = currentFocusId !== 0 && shipment.id !== currentFocusId;
         var originCoord = cached.originCoord;
         var destCoord = cached.destCoord;
         var intermediateStops = cached.intermediateStops;
@@ -959,6 +963,11 @@
 
     return {
       render: render,
+      setFocus: function (id) {
+        currentFocusId = Number(id) || 0;
+        centerOnFocus();
+        scheduleRender();
+      },
       controls: controls,
       destroy: function () {
         destroyed = true;
