@@ -40,3 +40,6 @@ public/assets/aistudio/
 
 /bootstrap/cache
 /storage/framework
+
+# GitHub PR template is tracked despite the *.md rule.
+!/.github/PULL_REQUEST_TEMPLATE.md
