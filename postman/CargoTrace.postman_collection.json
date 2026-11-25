@@ -602,7 +602,7 @@
   "variable": [
     {
       "key": "base_url",
-      "value": "http://43.173.52.180:3000"
+      "value": "https://cargotrace.16-16-196-20.sslip.io"
     },
     {
       "key": "token",

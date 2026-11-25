@@ -4,7 +4,7 @@ Real-time supply chain and shipment visibility web application for the
 Web Programming 2 final project (UAS). Laravel 12 + MySQL 8, Blade views,
 Sanctum API tokens, Leaflet + OpenStreetMap, Chart.js.
 
-Live deployment: **http://cargotrace.16-16-196-20.sslip.io/**
+Live deployment: **https://cargotrace.16-16-196-20.sslip.io/**
 
 ## What it does
 
